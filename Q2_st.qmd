@@ -18,7 +18,23 @@ Reference: 10.1172/JCI91190
 -   Interpret the biological significance of your findings and discuss why a high T-cell–inflamed GEP score does not necessarily guarantee treatment response
 
 ```{r}
-library(tidyverse)
+packages <- c("immunedeconv", 
+              "ggplot2",
+              "limma",
+              "tidyverse")
+missing <- packages[!vapply(packages,
+                            requireNamespace,
+                            logical(1),
+                            quietly=TRUE)]
+if(length(missing)) 
+  stop("Install missing packages: ",
+       paste(missing,collapse=", "))
+
+suppressPackageStartupMessages({
+  library(immunedeconv);
+  library(ggplot2);
+  library(limma);
+  library(tidyverse)})
 ```
 
 ```{r}
@@ -26,7 +42,22 @@ IMVigor <- readRDS("data/IMvigor210_plain.rds")
 ```
 
 ```{r}
-dim(IMVigor)
+clinical <- IMVigor$clinical
+counts <- IMVigor$counts
+tpm <- IMVigor$tpm
+
+colnames(clinical)
+dim(clinical)
+
+dim(counts)
+dim(tpm)
+```
+
+```{r}
+stopifnot(!anyDuplicated(pheno$RNA_ID),all(pheno$RNA_ID %in% colnames(expr)))
+expr <- as.matrix(expr[,pheno$RNA_ID,drop=FALSE])
+stopifnot(identical(colnames(expr),as.character(pheno$RNA_ID)))
+table(pheno$Response,useNA="ifany"); summary(pheno$PFS)
 ```
 
 ```{r}
@@ -37,4 +68,24 @@ genes_18 <- c(
   "IDO1", "LAG3", "NKG7", "PDCD1LG2", "PSMB10", "STAT1", "TIGIT"
 )
 
+missing_GEP <- setdiff(genes_18,rownames(expr))
+cat("GEP genes present:",
+    length(genes_18)-length(missing_GEP),
+    "of",length(genes_18),
+    "\n")
+```
+
+```{r}
+plot_response_boxplot <- function(data,variable,title) {
+  ggplot(data,aes(x=Response,y=.data[[variable]])) +
+    geom_boxplot(outlier.shape=NA,alpha=.3) +
+    geom_jitter(width=.12,alpha=.65,size=1.5) +
+    labs(title=title,x="Response class",y=variable)+theme_minimal()
+}
+plot_association <- function(data,x,y,title) {
+  ggplot(data,aes(x=.data[[x]],y=.data[[y]]))+
+    geom_point(alpha=.7)+geom_smooth(method="lm",se=FALSE,color="steelblue")+
+    labs(title=title,x=x,y=y)+theme_minimal()
+}
+spearman_test <- function(x,y) cor.test(x,y,method="spearman",exact=FALSE,use="complete.obs")
 ```
