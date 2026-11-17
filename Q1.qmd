@@ -24,6 +24,8 @@ IMVigor <- readRDS("data/IMvigor210_plain.rds")
 
 library(tidyverse)
 library(DESeq2)
+library(fgsea)
+library(msigdbr)
 
 
 clinical <- IMVigor$clinical
@@ -128,8 +130,6 @@ res <- results(dds, alpha = 0.05)
 summary(res)
 ```
 
-
-## Visualizations
 ```{r}
 res_df <- as.data.frame(res) |> 
   filter(!is.na(padj)) |> 
@@ -138,6 +138,88 @@ res_df <- as.data.frame(res) |>
   arrange(padj) 
 
 ```
+
+### Save significantly differentially expressed genes
+Save the genes for exercise 2
+
+```{r}
+saveRDS(res_df, "data/differential_expression_results.rds")
+```
+
+
+## GSEA
+
+```{r}
+
+ranked_genes <- res_df$stat
+names(ranked_genes) <- res_df$gene
+length(ranked_genes)
+
+```
+Load gene sets from MSigDB (Hallmark gene sets).
+
+```{r}
+
+gsea <- function(category = "", subcategory = ""){
+  if (subcategory != ""){
+    gene_sets <- msigdbr(species = "Homo sapiens", 
+                         collection = category, 
+                         subcollection = subcategory)
+  } else if (category != ""){
+    gene_sets <- msigdbr(species = "Homo sapiens", 
+                         collection = category)
+  } else {
+    gene_sets <- msigdbr(species = "Homo sapiens")
+    
+  }
+
+  split_genes <- split(x = gene_sets$gene_symbol, 
+                       f = gene_sets$gs_name)
+
+  set.seed(42)
+  suppressWarnings({
+    fgsea_res <- fgsea(pathways = split_genes,
+                   stats = ranked_genes, 
+                   nproc = 1)
+    })
+  
+  return(fgsea_res)
+}
+```
+
+```{r}
+fgsea_H <- gsea(category = "H")
+fgsea_C7 <- gsea(category = "C7")
+fgsea_C8 <- gsea(category = "C8")
+
+```
+
+
+```{r}
+top_pathways <- fgsea_H |> 
+  dplyr::arrange(padj) |> 
+  dplyr::slice(1:20)
+
+top_pathways
+
+```
+
+
+```{r}
+fgsea_C7 |> 
+  dplyr::arrange(padj) |> 
+  dplyr::slice(1:20)
+
+```
+
+```{r}
+fgsea_C8 |> 
+  dplyr::arrange(padj) |> 
+  dplyr::slice(1:20)
+```
+
+
+## Visualizations
 
 
 ```{r}
@@ -158,6 +240,40 @@ volcano_plot
 
 ```
 
+```{r}
+library(pheatmap)
+
+# 1. Transform counts for visualization (VST is standard for heatmaps)
+vsd <- vst(dds, blind = FALSE)
+mat <- assay(vsd)
+
+# 2. Select the top 30 most significantly differentially expressed genes
+top_genes <- res_df |> 
+  filter(!is.na(padj)) |> 
+  arrange(padj) |> 
+  head(30) |> 
+  pull(gene)
+
+# Subset the normalized matrix for just those top genes
+mat_subset <- mat[top_genes, ]
+
+# 3. Set up the annotation data frame using your available metadata
+# (Ensure row names match the column names of your count matrix)
+annotation_col <- data.frame(
+  BOR = clinical_filtered$BOR,
+  TMB = clinical_filtered$TMB,
+  row.names = clinical_filtered$pat_id
+)
+
+# 4. Draw the heatmap
+pheatmap(mat_subset, 
+         scale = "row",                # Centers and scales each gene across samples
+         show_colnames = FALSE,        # Hides cluttered patient IDs on the x-axis
+         annotation_col = annotation_col, # Adds the BOR and TMB annotation bars
+         cluster_cols = TRUE,          # Clusters patients based on expression similarity
+         cluster_rows = TRUE,          # Clusters genes with similar expression profiles
+         main = "Top 30 Differentially Expressed Genes (R vs NR)")
+```
 
 ## Biological interpretation
 
