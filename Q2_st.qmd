@@ -30,5 +30,11 @@ dim(IMVigor)
 ```
 
 ```{r}
-genes_18 <- 
+genes_18 <- c(
+  "CD27", "CD274", "CCL5",
+  "CD276", "CD8A", "CMKLR1",
+  "CXCL9", "CXCR6", "HLA-DQA1", "HLA-DRB1", "HLA-E",
+  "IDO1", "LAG3", "NKG7", "PDCD1LG2", "PSMB10", "STAT1", "TIGIT"
+)
+
 ```
