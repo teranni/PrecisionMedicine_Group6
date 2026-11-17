@@ -3,7 +3,7 @@ title: "Q2"
 format: html
 ---
 
-## RQ2 — Immune-related signatures
+# RQ2 — Immune-related signatures
 
 Are 18-gene T-cell–inflamed GEP (see D6; Ayers et al. (2017)) associated with treatment response?<https://www.jci.org/articles/view/91190>
 
@@ -16,6 +16,8 @@ Reference: 10.1172/JCI91190
 -   Investigate whether patients with higher GEP scores are more likely to respond to anti-PD-L1 treatment.
 
 -   Interpret the biological significance of your findings and discuss why a high T-cell–inflamed GEP score does not necessarily guarantee treatment response
+
+## Load packages
 
 ```{r}
 packages <- c("immunedeconv", 
@@ -37,6 +39,8 @@ suppressPackageStartupMessages({
   library(tidyverse)})
 ```
 
+## Load and read data
+
 ```{r}
 IMVigor <- readRDS("data/IMvigor210_plain.rds")
 ```
@@ -47,35 +51,18 @@ counts <- IMVigor$counts
 tpm <- IMVigor$tpm
 
 colnames(clinical)
+rownames(clinical)
 dim(clinical)
 
+# rownames(counts)
 dim(counts)
 dim(tpm)
 ```
 
-```{r}
-stopifnot(!anyDuplicated(pheno$RNA_ID),all(pheno$RNA_ID %in% colnames(expr)))
-expr <- as.matrix(expr[,pheno$RNA_ID,drop=FALSE])
-stopifnot(identical(colnames(expr),as.character(pheno$RNA_ID)))
-table(pheno$Response,useNA="ifany"); summary(pheno$PFS)
-```
+## Helper functions
 
 ```{r}
-genes_18 <- c(
-  "CD27", "CD274", "CCL5",
-  "CD276", "CD8A", "CMKLR1",
-  "CXCL9", "CXCR6", "HLA-DQA1", "HLA-DRB1", "HLA-E",
-  "IDO1", "LAG3", "NKG7", "PDCD1LG2", "PSMB10", "STAT1", "TIGIT"
-)
-
-missing_GEP <- setdiff(genes_18,rownames(expr))
-cat("GEP genes present:",
-    length(genes_18)-length(missing_GEP),
-    "of",length(genes_18),
-    "\n")
-```
-
-```{r}
+{r}
 plot_response_boxplot <- function(data,variable,title) {
   ggplot(data,aes(x=Response,y=.data[[variable]])) +
     geom_boxplot(outlier.shape=NA,alpha=.3) +
@@ -89,3 +76,85 @@ plot_association <- function(data,x,y,title) {
 }
 spearman_test <- function(x,y) cor.test(x,y,method="spearman",exact=FALSE,use="complete.obs")
 ```
+
+## Step 1 - Identify the 18 genes
+
+```{r}
+stopifnot(!anyDuplicated(rownames(counts)),
+          all(colnames(counts) %in% rownames(clinical)))
+
+gene_list <- rownames(counts)
+```
+
+```{r}
+genes_18 <- c(
+  "CD27", "CD274", "CCL5",
+  "CD276", "CD8A", "CMKLR1",
+  "CXCL9", "CXCR6", "HLA-DQA1", "HLA-DRB1", "HLA-E",
+  "IDO1", "LAG3", "NKG7", "PDCD1LG2", "PSMB10", "STAT1", "TIGIT"
+)
+
+missing_GEP <- setdiff(genes_18, gene_list)
+cat("GEP genes present:",
+    length(genes_18)-length(missing_GEP),
+    "of",length(genes_18),
+    "\n")
+if(length(missing_GEP))
+  warning("Missing GEP genes: ",paste(missing_GEP,collapse=", "))
+```
+
+### Calculating GEP scores
+
+```{r}
+GEP_present <- intersect(genes_18, gene_list)
+
+GEP_expr <- counts[GEP_present,,drop=FALSE]
+# scale() standardizes columns, so transpose to standardize each gene across patients.
+GEP_expr_scaled <- t(scale(t(GEP_expr)))
+if(any(!is.finite(GEP_expr_scaled)))
+  warning("Some gene z-scores are non-finite: check missing/constant genes")
+
+GEP_scores <- colMeans(GEP_expr_scaled,na.rm=TRUE)
+summary(GEP_scores)
+```
+
+## Step 2 - Creating the dataframe
+
+```{r}
+TMB <- clinical$TMB
+PD1 <- as.numeric(counts["PDCD1",])
+summary(TMB); summary(PD1)
+```
+
+```{r}
+df <- data.frame(sample=colnames(counts),
+                 TMB=TMB,
+                 PD1=PD1,
+                 GEP_scores=GEP_scores,
+                 Response=factor(clinical$BOR))
+
+stopifnot(identical(df$sample,colnames(expr)))
+table(df$Response)
+```
+
+## Step 3 - Analisation and Visualisation
+
+### Wilcoxon tests
+
+```{r}
+{r}
+if(nlevels(droplevels(df$Response))!=2) stop("The supplied two-group Wilcoxon tests require exactly two response classes")
+TMB_Response_test <- wilcox.test(TMB~Response,data=df,exact=FALSE)
+PD1_Response_test <- wilcox.test(PD1~Response,data=df,exact=FALSE)
+GEP_Response_test <- wilcox.test(GEP_scores~Response,data=df,exact=FALSE)
+
+sapply(list(TMB=TMB_Response_test,PD1=PD1_Response_test,GEP=GEP_Response_test),function(x)x$p.value)
+```
+
+### Boxplot: T cell–inflamed GEP across response groups
+
+```{r}
+plot_response_boxplot(df,"GEP_scores","T cell–inflamed GEP across response groups")
+```
+
+## Step 4 - Tumor Purity
