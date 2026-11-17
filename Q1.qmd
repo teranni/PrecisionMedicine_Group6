@@ -3,25 +3,162 @@ title: "Q1 Differential expression"
 format: html
 ---
 
-_Which genes are differentially expressed between patients with complete response and patients with progressive disease following anti-PD-L1 treatment?_
+*Which genes are differentially expressed between patients with complete response and patients with progressive disease following anti-PD-L1 treatment?*
+
+- Prepare and explore the gene-expression data, including appropriate filtering and normalization.
+
+- Perform differential expression analysis between responders/non-responder using DESeq2, and identify significantly differentially expressed genes
+
+- Visualize the results using e.g. volcano plots and heatmaps of selected genes.
+
+- Investigate the biological functions of differentially expressed genes and discuss their potential relevance to immunotherapy response.
+
+- Discuss the limitations of the analysis, including potential confounding factors and why differential expression does not necessarily imply a causal role in treatment response.
 
 ## Data and libraries
-```{r}
+
+```{r, message=FALSE, warning=FALSE}
 IMVigor <- readRDS("data/IMvigor210_plain.rds")
+
+# Load packages silently
+
 library(tidyverse)
 library(DESeq2)
+
+
+clinical <- IMVigor$clinical
+counts <- IMVigor$counts
+tpm <- IMVigor$tpm
+
 ```
+
+```{r}
+colnames(clinical)
+dim(clinical)
+
+dim(counts)
+dim(tpm)
+
+```
+
 
 ## Filtering and normalization
 
+```{r}
+# Check if row names is the same as both pat_id and sample_id
 
+if (!all(rownames(clinical) == clinical$pat_id)) {stop("Row names of clinical data do not match pat_id")
+}
+
+if (!all(rownames(clinical) == clinical$sample_id)) {stop("Row names of clinical data do not match pat_id")
+}
+
+clinical_filtered <- clinical |> 
+  filter(sample_id == pat_id) |> 
+  select(pat_id, BOR, TMB)
+
+dim(clinical_filtered)
+
+```
+
+
+```{r}
+# Filter sample_ids from counts and tpm which are not present in clinical and reverse
+
+counts_filtered <- as.data.frame(counts) |> 
+  select(clinical_filtered$pat_id)
+
+tpm_filtered <- as.data.frame(tpm) |> 
+  select(clinical_filtered$pat_id)
+
+dim(counts_filtered)
+dim(tpm_filtered)
+
+```
+```{r}
+# Check for missing values in counts
+sum(is.na(counts_filtered))
+
+```
+
+```{r}
+table(clinical_filtered$BOR)
+
+# As DESEQ expects 0's and 1's the BOR column is mutated
+
+clinical_filtered$BOR <- ifelse(clinical_filtered$BOR == "R", 1, 0)
+
+table(clinical_filtered$BOR)
+
+clinical_filtered$BOR <- as.factor(clinical_filtered$BOR)
+
+counts_matrix <- as.matrix(counts_filtered)
+
+all(colnames(counts_matrix) == rownames(clinical_filtered))
+
+```
 ## Differential expression analysis
+
+```{r}
+
+dds <- DESeqDataSetFromMatrix(countData = counts_matrix,
+                              colData = clinical_filtered,
+                              design = ~ BOR)
+
+dim(dds)
+```
+```{r}
+# Remove genes with very low counts, to reduce the number of tests and improve power
+
+dds <- dds[rowSums(counts(dds)) >= 10, ]
+
+
+dim(dds)
+
+# This removed roughly 8000 genes
+```
+
+```{r}
+dds <- DESeq(dds)
+```
+
+```{r}
+res <- results(dds, alpha = 0.05)
+
+summary(res)
+```
 
 
 ## Visualizations
+```{r}
+res_df <- as.data.frame(res) |> 
+  filter(!is.na(padj)) |> 
+  rownames_to_column("gene") |> 
+  mutate(significant = padj < 0.05) |>
+  arrange(padj) 
+
+```
+
+
+```{r}
+# Volcano plot
+
+volcano_plot <- res_df |> 
+  ggplot(aes(x = log2FoldChange, y = -log10(padj), color = significant)) +
+  geom_point(alpha = 0.5) +
+  scale_color_manual(values = c("grey", "red")) +
+  theme_minimal() +
+  labs(title = "Volcano plot of differential expression",
+       x = "Log2 fold change",
+       y = "-Log10 adjusted p-value") +
+  theme(legend.position = "none")
+
+volcano_plot
+
+
+```
 
 
 ## Biological interpretation
-
 
 ## Limitations and discussion
