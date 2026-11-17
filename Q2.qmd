@@ -2,21 +2,12 @@
 title: "Q2"
 format: html
 ---
+## RQ2 — Immune-related signatures. Are 18-gene T-cell–inflamed GEP (see D6; Ayers et al. (2017)) associated with treatment response? 
 
-## RQ2 — Immune-related signatures
+## 1. Identify the 18 genes included in the published T-cell–inflamed GEP and examine their expression in the dataset. 
 
-Are 18-gene T-cell–inflamed GEP (see D6; Ayers et al. (2017)) associated with treatment response?<https://www.jci.org/articles/view/91190>
+## 2. Calculate a T-cell–inflamed GEP score for each patient.
 
-Reference: 10.1172/JCI91190
+## 3. Investigate whether patients with higher GEP scores are more likely to respond to anti-PD-L1 treatment.
 
-- Suggested tasks: Identify the 18 genes included in the published T-cell–inflamed GEP and examine their expression in the dataset.
-
-- Calculate a T-cell–inflamed GEP score for each patient.
-
-- Investigate whether patients with higher GEP scores are more likely to respond to anti-PD-L1 treatment.
-
-- Interpret the biological significance of your findings and discuss why a high T-cell–inflamed GEP score does not necessarily guarantee treatment response
-
-```{r}
-IMVigor <- readRDS("data/IMvigor210_plain.rds")
-```
+## 4. Interpret the biological significance of your findings and discuss why a high T-cell–inflamed GEP score does not necessarily guarantee treatment response.
