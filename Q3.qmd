@@ -18,5 +18,96 @@ Suggested tasks:
 - Explain the biological information captured by each biomarker and discuss their relative strengths and limitations
 
 ```{r}
-IMVigor <- readRDS("data/IMvigor210_plain.rds")
+library(ggplot2)
+data <- readRDS("data/IMvigor210_plain.rds")
+
+pheno <- data$clinical
+expr  <- data$tpm[, match(pheno$sample_id, colnames(data$tpm))]
+stopifnot(identical(pheno$sample_id, colnames(expr)))
+```
+
+```{r}
+#| label: helper-functions
+
+plot_Response_boxplot <- function(data, variable, y_label, test_result) {
+  ggplot(data, aes(x = Response, y = .data[[variable]])) +
+    geom_boxplot(outlier.shape = NA) +
+    geom_jitter(width = 0.12, alpha = 0.6) +
+    annotate(
+      "text",
+      x = Inf, y = Inf,
+      label = paste0("p = ", signif(test_result$p.value, 3)),
+      hjust = 1.1, vjust = 1.5
+    ) +
+    labs(
+      x = "Response class",
+      y = y_label
+    ) +
+    theme_minimal()
+}
+```
+
+```{r}
+#| label: calculate-gep
+
+GEP_genes <- c(
+  "CCL5", "CD27", "CD274", "CD276", "CD8A", "CMKLR1", "CXCL9",
+  "CXCR6", "HLA-DQA1", "HLA-DRB1", "HLA-E", "IDO1", "LAG3",
+  "NKG7", "PDCD1LG2", "PSMB10", "STAT1", "TIGIT"
+)
+
+GEP_genes_present <- GEP_genes[GEP_genes %in% rownames(expr)]
+GEP_genes_missing <- setdiff(GEP_genes, rownames(expr))
+
+cat("GEP genes present:", length(GEP_genes_present), "of", length(GEP_genes), "\n")
+cat("Missing genes:", paste(GEP_genes_missing, collapse = ", "), "\n")
+
+# Extract GEP genes.
+GEP_expr <- expr[GEP_genes_present, , drop = FALSE]
+
+# Standardize each gene across samples.
+# scale() operates on columns, so transpose before and after scaling.
+GEP_expr_scaled <- t(scale(t(GEP_expr)))
+
+# Average standardized expression across GEP genes for each sample.
+GEP_scores <- colMeans(GEP_expr_scaled, na.rm = TRUE)
+
+summary(GEP_scores)
+```
+
+```{r}
+#| label: create-analysis-data
+
+df <- data.frame(
+  sample = pheno$sample_id,
+  TMB = pheno$TMB,
+  PD1 = as.numeric(expr["PDCD1", ]),
+  GEP_scores = GEP_scores,
+  Response = factor(pheno$BOR)
+)
+
+stopifnot(identical(df$sample, colnames(expr)))
+
+summary(df)
+
+table(df$Response, useNA = "ifany")
+```
+
+```{r}
+#| label: test-Response-biomarkers
+TMB_Response_test <- wilcox.test(TMB ~ Response, data = df)
+PD1_Response_test <- wilcox.test(PD1 ~ Response, data = df)
+GEP_Response_test <- wilcox.test(GEP_scores ~ Response, data = df)
+
+TMB_Response_test
+PD1_Response_test
+GEP_Response_test
+```
+
+```{r}
+#| label: plot-Response-biomarkers
+
+plot_Response_boxplot(df, "TMB", "Tumor mutational burden", TMB_Response_test)
+plot_Response_boxplot(df, "PD1", "PDCD1 expression", PD1_Response_test)
+plot_Response_boxplot(df, "GEP_scores", "T cell–inflamed GEP score", GEP_Response_test)
 ```
