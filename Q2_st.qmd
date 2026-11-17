@@ -50,11 +50,11 @@ clinical <- IMVigor$clinical
 counts <- IMVigor$counts
 tpm <- IMVigor$tpm
 
-colnames(clinical)
-rownames(clinical)
+head(colnames(clinical), 10)
+head(rownames(clinical), 10)
 dim(clinical)
 
-# rownames(counts)
+head(rownames(counts), 10)
 dim(counts)
 dim(tpm)
 ```
@@ -62,7 +62,6 @@ dim(tpm)
 ## Helper functions
 
 ```{r}
-{r}
 plot_response_boxplot <- function(data,variable,title) {
   ggplot(data,aes(x=Response,y=.data[[variable]])) +
     geom_boxplot(outlier.shape=NA,alpha=.3) +
@@ -133,22 +132,31 @@ df <- data.frame(sample=colnames(counts),
                  GEP_scores=GEP_scores,
                  Response=factor(clinical$BOR))
 
-stopifnot(identical(df$sample,colnames(expr)))
 table(df$Response)
 ```
 
-## Step 3 - Analisation and Visualisation
+## Step 3 - Analysis and Visualisation
 
 ### Wilcoxon tests
 
 ```{r}
-{r}
-if(nlevels(droplevels(df$Response))!=2) stop("The supplied two-group Wilcoxon tests require exactly two response classes")
-TMB_Response_test <- wilcox.test(TMB~Response,data=df,exact=FALSE)
-PD1_Response_test <- wilcox.test(PD1~Response,data=df,exact=FALSE)
-GEP_Response_test <- wilcox.test(GEP_scores~Response,data=df,exact=FALSE)
+if(nlevels(droplevels(df$Response))!=2) 
+  stop("The supplied two-group Wilcoxon tests require exactly two response classes")
 
-sapply(list(TMB=TMB_Response_test,PD1=PD1_Response_test,GEP=GEP_Response_test),function(x)x$p.value)
+TMB_Response_test <- wilcox.test(TMB~Response,
+                                 data=df,
+                                 exact=FALSE)
+PD1_Response_test <- wilcox.test(PD1~Response,
+                                 data=df,
+                                 exact=FALSE)
+GEP_Response_test <- wilcox.test(GEP_scores~Response,
+                                 data=df,
+                                 exact=FALSE)
+
+sapply(list(TMB=TMB_Response_test,
+            PD1=PD1_Response_test,
+            GEP=GEP_Response_test),
+       function(x)x$p.value)
 ```
 
 ### Boxplot: T cell–inflamed GEP across response groups
@@ -158,3 +166,5 @@ plot_response_boxplot(df,"GEP_scores","T cell–inflamed GEP across response gro
 ```
 
 ## Step 4 - Tumor Purity
+
+## Interpretations
