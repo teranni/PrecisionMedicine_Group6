@@ -43,7 +43,6 @@ dim(tpm)
 
 ```
 
-
 ## Filtering and normalization
 
 ```{r}
@@ -63,7 +62,6 @@ dim(clinical_filtered)
 
 ```
 
-
 ```{r}
 # Filter sample_ids from counts and tpm which are not present in clinical and reverse
 
@@ -77,6 +75,7 @@ dim(counts_filtered)
 dim(tpm_filtered)
 
 ```
+
 ```{r}
 # Check for missing values in counts
 sum(is.na(counts_filtered))
@@ -99,6 +98,7 @@ counts_matrix <- as.matrix(counts_filtered)
 all(colnames(counts_matrix) == rownames(clinical_filtered))
 
 ```
+
 ## Differential expression analysis
 
 ```{r}
@@ -109,6 +109,7 @@ dds <- DESeqDataSetFromMatrix(countData = counts_matrix,
 
 dim(dds)
 ```
+
 ```{r}
 # Remove genes with very low counts, to reduce the number of tests and improve power
 
@@ -140,12 +141,12 @@ res_df <- as.data.frame(res) |>
 ```
 
 ### Save significantly differentially expressed genes
+
 Save the genes for exercise 2
 
 ```{r}
 saveRDS(res_df, "data/differential_expression_results.rds")
 ```
-
 
 ## GSEA
 
@@ -156,6 +157,7 @@ names(ranked_genes) <- res_df$gene
 length(ranked_genes)
 
 ```
+
 Load gene sets from MSigDB (Hallmark gene sets).
 
 ```{r}
@@ -183,44 +185,320 @@ gsea <- function(category = "", subcategory = ""){
                    nproc = 1)
     })
   
-  return(fgsea_res)
+  return(list(fgsea_res = fgsea_res, split_genes = split_genes))
 }
 ```
 
-```{r}
-fgsea_H <- gsea(category = "H")
-fgsea_C7 <- gsea(category = "C7")
-fgsea_C8 <- gsea(category = "C8")
+### Selection of Human MsigDB collections
 
+**Relevant** 
+H: Hallmark gene sets which summarize and represent well-defined biological states and processes. 
+
+C2: Curated gene sets from the literature and databases. 
+
+C5: GO (Gene Ontology) gene sets. 
+
+C7: Immunological signature gene sets. 
+
+C8: Cell type gene sets identified in single-cell sequencing studies.
+
+We have chosen to focus on H, C7 and C8 because they combine broad pathway-level information with immune- and cell-type-specific insights. Hallmark gene sets provide an overview of the major biological processes represented in the data. C7 can identify differences in immune responses between conditions, which may help explain differences in treatment response. C8 can reveal differences in the abundance or activity of specific cell types, helping identify which cell populations may be driving the observed variation in gene expression.
+
+#### Hallmark
+
+```{r}
+res_H <- gsea(category = "H")
+fgsea_H    <- res_H$fgsea_res
+split_genes_H <- res_H$split_genes
+```
+
+```{r}
+number_of_top_pathways_up <- 10
+number_of_top_pathways_down <- 10
+
+topPathwaysUp <- fgsea_H[ES > 0][head(order(pval), n = number_of_top_pathways_up), pathway]
+topPathwaysDown <- fgsea_H[ES < 0][head(order(pval), n = number_of_top_pathways_down), pathway]
+topPathways <- c(topPathwaysUp, rev(topPathwaysDown))
+
+## To show the plot inline you can call plotGseaTable() without pdf()/png()
+plotGseaTable(split_genes_H[topPathways], 
+              stats = ranked_genes, 
+              fgseaRes = fgsea_H, 
+              gseaParam = 0.5)
+
+topPathways
+```
+These pathways indicate, that patients that respond to anti-PD-L1 treatment have a higher expression of genes involved in immune response (inteferon gamma and alpha), and cell proliferation (E2F targets and G2M). 
+
+Similarly, pathways that are downregulated, would normally control cell division. Interestingly, two of the downregulated pathways are involved with blood vessels and clotting (angiogenesis and coagulation). 
+
+```{r}
+top_pathway <- fgsea_H |>
+  filter(ES > 0) |>
+  arrange(padj, desc(ES)) |> 
+  head(1) |> 
+  pull(pathway)
+  
+
+p <- plotEnrichment(split_genes_H[[top_pathway]], ranked_genes) 
+
+p$layers[[1]]$aes_params$colour <- "cornflowerblue"  # Change to any color or hex code you like!
+p$layers[[1]]$aes_params$linewidth <- 1.2     # Make it slightly bolder for reports
+
+p +
+  labs(
+    title = gsub("_", " ", top_pathway), # Removes underscores for a clean title
+    subtitle = "Top Enriched H Hallmark Signature",
+    x = "Rank in Ordered Gene List",
+    y = "Enrichment Score (ES)"
+  ) +
+  coord_cartesian(ylim = c(-0.2, 0.8)) +
+  theme_minimal(base_size = 13) +
+  theme(
+    plot.title = element_text(face = "bold", size = 13, hjust = 0),
+    plot.subtitle = element_text(size = 10, color = "grey40", hjust = 0),
+    panel.grid.minor = element_blank(),
+    panel.grid.major = element_line(color = "grey95", linetype = "dashed"),
+    axis.title = element_text(face = "bold", size = 11),
+    axis.text = element_text(color = "black", size = 10)
+  )
+```
+
+
+
+```{r}
+top_pathway <- fgsea_H |>
+  filter(ES < 0) |>
+  arrange(padj, ES) |> 
+  head(1) |> 
+  pull(pathway)
+  
+
+p <- plotEnrichment(split_genes_H[[top_pathway]], ranked_genes) 
+
+p$layers[[1]]$aes_params$colour <- "cornflowerblue"  # Change to any color or hex code you like!
+p$layers[[1]]$aes_params$linewidth <- 1.2     # Make it slightly bolder for reports
+
+p +
+  labs(
+    title = gsub("_", " ", top_pathway), # Removes underscores for a clean title
+    subtitle = "Top Enriched H Hallmark Signature",
+    x = "Rank in Ordered Gene List",
+    y = "Enrichment Score (ES)"
+  ) +
+  coord_cartesian(ylim = c(-0.6, 0.1)) +
+  theme_minimal(base_size = 13) +
+  theme(
+    plot.title = element_text(face = "bold", size = 13, hjust = 0),
+    plot.subtitle = element_text(size = 10, color = "grey40", hjust = 0),
+    panel.grid.minor = element_blank(),
+    panel.grid.major = element_line(color = "grey95", linetype = "dashed"),
+    axis.title = element_text(face = "bold", size = 11),
+    axis.text = element_text(color = "black", size = 10)
+  )
+```
+
+#### C7
+
+```{r}
+
+res_C7 <- gsea(category = "C7")
+fgsea_C7 <- res_C7$fgsea_res
+split_genes_C7 <- res_C7$split_genes
+
+```
+
+```{r}
+number_of_top_pathways_up <- 10
+number_of_top_pathways_down <- 10
+
+topPathwaysUp <- fgsea_C7[ES > 0][head(order(pval), n = number_of_top_pathways_up), pathway]
+topPathwaysDown <- fgsea_C7[ES < 0][head(order(pval), n = number_of_top_pathways_down), pathway]
+topPathways <- c(topPathwaysUp, rev(topPathwaysDown))
+
+## To show the plot inline you can call plotGseaTable() without pdf()/png()
+plotGseaTable(split_genes_C7[topPathways], 
+              stats = ranked_genes, 
+              fgseaRes = fgsea_C7, 
+              gseaParam = 0.5)
+
+topPathways
+```
+The upregulated pathways here are showing signs of active CD8+ T cell responses, as weel as other T-cells and long B-cell response. 
+
+The downregulated genes are involved in the initial short-term innate immune response, such as early macrophage activation and 1-3 hour response, indicating that the patients that respond to anti-PD-L1 treatment have a more active and long-term immune response.
+
+
+```{r}
+top_pathway <- fgsea_C7 |>
+  filter(ES > 0) |>
+  arrange(padj, desc(ES)) |> 
+  head(1) |> 
+  pull(pathway)
+  
+
+p <- plotEnrichment(split_genes_C7[[top_pathway]], ranked_genes) 
+
+p$layers[[1]]$aes_params$colour <- "cornflowerblue"  # Change to any color or hex code you like!
+p$layers[[1]]$aes_params$linewidth <- 1.2     # Make it slightly bolder for reports
+
+p +
+  labs(
+    title = gsub("_", " ", top_pathway), # Removes underscores for a clean title
+    subtitle = "Top Enriched C7 Immune Signature",
+    x = "Rank in Ordered Gene List",
+    y = "Enrichment Score (ES)"
+  ) +
+  coord_cartesian(ylim = c(-0.2, 0.8)) +
+  theme_minimal(base_size = 13) +
+  theme(
+    plot.title = element_text(face = "bold", size = 13, hjust = 0),
+    plot.subtitle = element_text(size = 10, color = "grey40", hjust = 0),
+    panel.grid.minor = element_blank(),
+    panel.grid.major = element_line(color = "grey95", linetype = "dashed"),
+    axis.title = element_text(face = "bold", size = 11),
+    axis.text = element_text(color = "black", size = 10)
+  )
+```
+
+
+
+```{r}
+top_pathway <- fgsea_C7 |>
+  filter(ES < 0) |>
+  arrange(padj, ES) |> 
+  head(1) |> 
+  pull(pathway)
+  
+
+p <- plotEnrichment(split_genes_C7[[top_pathway]], ranked_genes) 
+
+p$layers[[1]]$aes_params$colour <- "cornflowerblue"  # Change to any color or hex code you like!
+p$layers[[1]]$aes_params$linewidth <- 1.2     # Make it slightly bolder for reports
+
+p +
+  labs(
+    title = gsub("_", " ", top_pathway), # Removes underscores for a clean title
+    subtitle = "Top Enriched C7 Immune Signature",
+    x = "Rank in Ordered Gene List",
+    y = "Enrichment Score (ES)"
+  ) +
+  coord_cartesian(ylim = c(-0.6, 0.1)) +
+  theme_minimal(base_size = 13) +
+  theme(
+    plot.title = element_text(face = "bold", size = 13, hjust = 0),
+    plot.subtitle = element_text(size = 10, color = "grey40", hjust = 0),
+    panel.grid.minor = element_blank(),
+    panel.grid.major = element_line(color = "grey95", linetype = "dashed"),
+    axis.title = element_text(face = "bold", size = 11),
+    axis.text = element_text(color = "black", size = 10)
+  )
+```
+
+
+#### C8
+
+```{r}
+res_C8 <- gsea(category = "C8")
+fgsea_C8 <- res_C8$fgsea_res
+split_genes_C8 <- res_C8$split_genes
+```
+
+```{r}
+number_of_top_pathways_up <- 10
+number_of_top_pathways_down <- 10
+
+topPathwaysUp <- fgsea_C8[ES > 0][head(order(pval), n = number_of_top_pathways_up), pathway]
+topPathwaysDown <- fgsea_C8[ES < 0][head(order(pval), n = number_of_top_pathways_down), pathway]
+topPathways <- c(topPathwaysUp, rev(topPathwaysDown))
+topPathways
+
+## To show the plot inline you can call plotGseaTable() without pdf()/png()
+plotGseaTable(split_genes_C8[topPathways], 
+              stats = ranked_genes, 
+              fgseaRes = fgsea_C8, 
+              gseaParam = 0.5)
+
+```
+This again paints a picture of increased presence of immune-cells and lower presence of structural cells like endothelial cells ligning blood vessels. 
+It should however be noted, that the top 10 upregulated pathways all have the same p-value (the minimal possible p-value for this test), which means the order is random, and that all pathways with this p-value should be evaluated
+
+```{r}
+fgsea_C8 |>
+  as.data.frame() |>
+  filter(ES > 0) |> 
+  filter(padj == min(padj))
 ```
 
 
 ```{r}
-top_pathways <- fgsea_H |> 
-  dplyr::arrange(padj) |> 
-  dplyr::slice(1:20)
+top_pathway <- fgsea_C8 |>
+  filter(ES > 0) |>
+  arrange(padj, desc(ES)) |> 
+  head(1) |> 
+  pull(pathway)
+  
 
-top_pathways
+p <- plotEnrichment(split_genes_C8[[top_pathway]], ranked_genes) 
 
+p$layers[[1]]$aes_params$colour <- "cornflowerblue"  # Change to any color or hex code you like!
+p$layers[[1]]$aes_params$linewidth <- 1.2     # Make it slightly bolder for reports
+
+p +
+  labs(
+    title = gsub("_", " ", top_pathway), # Removes underscores for a clean title
+    subtitle = "Top Enriched C8 Cell-Type Signature",
+    x = "Rank in Ordered Gene List",
+    y = "Enrichment Score (ES)"
+  ) +
+  coord_cartesian(ylim = c(-0.2, 0.8)) +
+  theme_minimal(base_size = 13) +
+  theme(
+    plot.title = element_text(face = "bold", size = 13, hjust = 0),
+    plot.subtitle = element_text(size = 10, color = "grey40", hjust = 0),
+    panel.grid.minor = element_blank(),
+    panel.grid.major = element_line(color = "grey95", linetype = "dashed"),
+    axis.title = element_text(face = "bold", size = 11),
+    axis.text = element_text(color = "black", size = 10)
+  )
 ```
 
 
-```{r}
-fgsea_C7 |> 
-  dplyr::arrange(padj) |> 
-  dplyr::slice(1:20)
-
-```
 
 ```{r}
-fgsea_C8 |> 
-  dplyr::arrange(padj) |> 
-  dplyr::slice(1:20)
+top_pathway <- fgsea_C8 |>
+  filter(ES < 0) |>
+  arrange(padj, ES) |> 
+  head(1) |> 
+  pull(pathway)
+  
+
+p <- plotEnrichment(split_genes_C8[[top_pathway]], ranked_genes) 
+
+p$layers[[1]]$aes_params$colour <- "cornflowerblue"  # Change to any color or hex code you like!
+p$layers[[1]]$aes_params$linewidth <- 1.2     # Make it slightly bolder for reports
+
+p +
+  labs(
+    title = gsub("_", " ", top_pathway), # Removes underscores for a clean title
+    subtitle = "Top Enriched C8 Cell-Type Signature",
+    x = "Rank in Ordered Gene List",
+    y = "Enrichment Score (ES)"
+  ) +
+  coord_cartesian(ylim = c(-0.6, 0.1)) +
+  theme_minimal(base_size = 13) +
+  theme(
+    plot.title = element_text(face = "bold", size = 13, hjust = 0),
+    plot.subtitle = element_text(size = 10, color = "grey40", hjust = 0),
+    panel.grid.minor = element_blank(),
+    panel.grid.major = element_line(color = "grey95", linetype = "dashed"),
+    axis.title = element_text(face = "bold", size = 11),
+    axis.text = element_text(color = "black", size = 10)
+  )
 ```
 
 
 ## Visualizations
-
 
 ```{r}
 # Volcano plot
@@ -277,4 +555,15 @@ pheatmap(mat_subset,
 
 ## Biological interpretation
 
+Given the above results, we can see that the differentially expressed genes and enriched pathways suggest that patients who respond to anti-PD-L1 treatment have a more active and long-term immune response. The upregulated pathways indicate increased activity of CD8+ T cells, other T cells, and B cells, while the downregulated pathways suggest a reduced short-term innate immune response. This could imply that a robust adaptive immune response is associated with better treatment outcomes.
+
 ## Limitations and discussion
+The results could however be confounded by the treatment response, as a response to PD-L1 treatment could itself lead to changes in gene expression. Additionally, while differential expression analysis can identify genes associated with treatment response, it does not establish causality. Further functional studies would be needed to determine whether these genes play a direct role in mediating the response to anti-PD-L1 therapy.
+
+
+As the data comes from bulk RNA expression, some of the samples could have low tumor purity, leading to results coming from low tumor expression due to high immune infiltration. This could be a confounding factor, as the immune response could be driving the observed differences in gene expression rather than the tumor cells themselves.
+
+
+### OBS - comment from Ida
+Maybe we should add some logical transition to GEP and tumor purity to make it easy to follow the analysis?
+
