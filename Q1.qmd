@@ -63,7 +63,6 @@ dim(clinical_filtered)
 
 ```
 
-
 ```{r}
 # Filter sample_ids from counts and tpm which are not present in clinical and reverse
 
@@ -77,6 +76,7 @@ dim(counts_filtered)
 dim(tpm_filtered)
 
 ```
+
 ```{r}
 # Check for missing values in counts
 sum(is.na(counts_filtered))
@@ -109,6 +109,7 @@ dds <- DESeqDataSetFromMatrix(countData = counts_matrix,
 
 dim(dds)
 ```
+
 ```{r}
 # Remove genes with very low counts, to reduce the number of tests and improve power
 
@@ -146,6 +147,38 @@ Save the genes for exercise 2
 saveRDS(res_df, "data/differential_expression_results.rds")
 ```
 
+
+Using the top 30 most significantly differentially expressed genes, we can search for their biological functions and relevance to immunotherapy response.
+
+For this, a search for the NCBI Gene database is compiled below. While doing this, it was found that the gene LOC81691 is no longer the preferred symbol for this gene, and has been updated to REXO5. Therefore, we include this in the search query.
+
+```{r}
+
+top_genes <- res_df |> 
+  filter(!is.na(padj)) |> 
+  arrange(padj) |> 
+  head(30) |> 
+  pull(gene)
+
+# Find function for the top_genes 
+# LOC81691 has modern name REXO5
+
+cat('("', str_c(sort(c(top_genes, "REXO5")), '"[Preferred Symbol]', collapse = ' OR "'), ') AND "Homo sapiens"[porgn]\n', sep="")
+
+```
+
+The resulting table from NCBI was then exported and imported into R for further analysis.
+
+```{r}
+
+top_genes_annot <- read.csv("data/gene_result.txt", sep="\t")
+
+top_genes_annot |>
+  select(Symbol, description)
+
+```
+
+The genes alone are not sufficient for a complete biological interpretation. Additional context and functional annotations are required to understand their role in the biological processes under investigation. Therefore we look into the pathways using Gene Set Enrichment Analysis (GSEA).
 
 ## GSEA
 
@@ -194,7 +227,6 @@ fgsea_C8 <- gsea(category = "C8")
 
 ```
 
-
 ```{r}
 top_pathways <- fgsea_H |> 
   dplyr::arrange(padj) |> 
@@ -203,7 +235,6 @@ top_pathways <- fgsea_H |>
 top_pathways
 
 ```
-
 
 ```{r}
 fgsea_C7 |> 
@@ -221,7 +252,6 @@ fgsea_C8 |>
 
 ## Visualizations
 
-
 ```{r}
 # Volcano plot
 
@@ -236,45 +266,9 @@ volcano_plot <- res_df |>
   theme(legend.position = "none")
 
 volcano_plot
-
-
-```
-
-```{r}
-library(pheatmap)
-
-# 1. Transform counts for visualization (VST is standard for heatmaps)
-vsd <- vst(dds, blind = FALSE)
-mat <- assay(vsd)
-
-# 2. Select the top 30 most significantly differentially expressed genes
-top_genes <- res_df |> 
-  filter(!is.na(padj)) |> 
-  arrange(padj) |> 
-  head(30) |> 
-  pull(gene)
-
-# Subset the normalized matrix for just those top genes
-mat_subset <- mat[top_genes, ]
-
-# 3. Set up the annotation data frame using your available metadata
-# (Ensure row names match the column names of your count matrix)
-annotation_col <- data.frame(
-  BOR = clinical_filtered$BOR,
-  TMB = clinical_filtered$TMB,
-  row.names = clinical_filtered$pat_id
-)
-
-# 4. Draw the heatmap
-pheatmap(mat_subset, 
-         scale = "row",                # Centers and scales each gene across samples
-         show_colnames = FALSE,        # Hides cluttered patient IDs on the x-axis
-         annotation_col = annotation_col, # Adds the BOR and TMB annotation bars
-         cluster_cols = TRUE,          # Clusters patients based on expression similarity
-         cluster_rows = TRUE,          # Clusters genes with similar expression profiles
-         main = "Top 30 Differentially Expressed Genes (R vs NR)")
 ```
 
 ## Biological interpretation
 
 ## Limitations and discussion
+
