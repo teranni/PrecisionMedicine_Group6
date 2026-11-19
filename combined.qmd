@@ -1,0 +1,1068 @@
+---
+title: "Computational Precision Medicine - Group Project"
+subtitle: "Gene-expression biomarkers of immunotherapy response"
+author: "Group 6"
+date: today
+date-format: "MMMM D, YYYY"
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    embed-resources: true
+execute:
+  echo: true
+  warning: false
+  message: false
+---
+
+```{r, include=FALSE}
+# Set global chunk options
+knitr::opts_chunk$set(
+  fig.width = 8,
+  fig.height = 6,
+  fig.align = "center",
+  cache = FALSE
+)
+```
+
+# Introduction
+
+This report investigates gene-expression biomarkers of immunotherapy response using the IMvigor210 dataset, which contains RNA-seq data from patients with urothelial cancer treated with anti-PD-L1 therapy. We address four research questions:
+
+**RQ1:** Which genes are differentially expressed between responders and non-responders?
+
+**RQ2:** Are 18-gene T-cell-inflamed GEP associated with treatment response?
+
+**RQ3:** How do PD-1 expression, immune-related gene signatures, and TMB compare in their association with treatment response?
+
+**RQ4:** How might differences in tumor purity influence the expression of immune-related biomarkers and their observed associations with treatment response?
+
+## Setup
+
+### Libraries and data
+
+```{r, message=FALSE, warning=FALSE}
+# Load required packages
+library(tidyverse)
+library(DESeq2)
+library(fgsea)
+library(msigdbr)
+library(immunedeconv)
+library(limma)
+library(ggplot2)
+library(patchwork)
+
+# Load data
+IMVigor <- readRDS("data/IMvigor210_plain.rds")
+clinical <- IMVigor$clinical
+counts <- IMVigor$counts
+tpm <- IMVigor$tpm
+
+```
+
+### Setup and helper functions
+```{r}
+# Define consistent color scheme for response groups
+response_colors <- c("NR" = "#4E79A7", "R" = "#E15759")
+
+# Helper function for consistent boxplots
+plot_response_boxplot <- function(data, variable, y_label, test_result = NULL) {
+  data <- data |> mutate(Response = BOR)
+  p <- ggplot(data, aes(x = Response, y = .data[[variable]], fill = Response)) +
+    geom_boxplot(outlier.shape = NA, alpha = 0.7) +
+    geom_jitter(width = 0.12, alpha = 0.6, size = 1.5, color = "black") +
+    scale_fill_manual(values = response_colors) +
+    labs(
+      x = "Response class",
+      y = y_label,
+      fill = "Response"
+    ) +
+    theme_minimal() +
+    theme(legend.position = "None")
+  
+  if (!is.null(test_result) && !is.null(test_result$p.value)) {
+    p <- p + annotate(
+      "text",
+      x = Inf, y = Inf,
+      label = paste0("p = ", signif(test_result$p.value, 3)),
+      hjust = 1.1, vjust = 1.5
+    )
+  }
+  return(p)
+}
+
+# Helper function for consistent scatter plots with correlation
+plot_association <- function(data, x, y, x_label, y_label, cor_test = NULL) {
+  p <- ggplot(data, aes(x = .data[[x]], y = .data[[y]])) +
+    geom_point(alpha = 0.7) +
+    geom_smooth(method = "lm", se = FALSE, color = "#4E79A7") +
+    labs(
+      x = x_label,
+      y = y_label
+    ) +
+    theme_minimal()
+  
+  if (!is.null(cor_test)) {
+    rho <- if (!is.null(cor_test$estimate)) unname(cor_test$estimate) else NA
+    p <- p + annotate(
+      "text",
+      x = Inf, y = Inf,
+      label = paste0(
+        "Spearman rho = ", ifelse(!is.na(rho), round(rho, 2), "NA"),
+        "\np = ", ifelse(!is.null(cor_test$p.value), signif(cor_test$p.value, 3), "NA")
+      ),
+      hjust = 1.1, vjust = 1.3
+    )
+  }
+  return(p)
+}
+
+# Helper function for volcano plots
+plot_volcano <- function(data, log2fc_col = "log2FoldChange", padj_col = "padj", 
+                         gene_col = "gene", significant_col = "significant") {
+  ggplot(data, aes(x = .data[[log2fc_col]], y = -log10(.data[[padj_col]]), 
+                   color = .data[[significant_col]])) +
+    geom_point(alpha = 0.5) +
+    scale_color_manual(values = c("FALSE" = "grey", "TRUE" = "#E15759")) +
+    labs(
+      title = "Volcano plot of differential expression",
+      x = "Log2 fold change (Responder vs Non-responder)",
+      y = "-Log10 adjusted p-value"
+    ) +
+    theme_minimal() +
+    theme(legend.position = "none")
+}
+```
+
+## Data Preparation
+
+```{r}
+# Verify sample alignment between clinical and expression data
+if (!all(rownames(clinical) == clinical$pat_id)) {
+  stop("Row names of clinical data do not match pat_id")
+}
+if (!all(rownames(clinical) == clinical$sample_id)) {
+  stop("Row names of clinical data do not match sample_id")
+}
+
+# Filter clinical data
+clinical_filtered <- clinical |>
+  filter(sample_id == pat_id) |>
+  select(pat_id, BOR, TMB)
+
+# Filter counts and tpm to matching samples
+counts_filtered <- as.data.frame(counts) |>
+  select(all_of(clinical_filtered$pat_id))
+
+tpm_filtered <- as.data.frame(tpm) |>
+  select(all_of(clinical_filtered$pat_id))
+
+# Check for missing values in counts
+sum(is.na(counts_filtered))
+
+# Convert to matrices
+counts_matrix <- as.matrix(counts_filtered)
+tpm_matrix <- as.matrix(tpm_filtered)
+
+# Verify alignment
+stopifnot(identical(colnames(counts_matrix), rownames(clinical_filtered)))
+stopifnot(identical(colnames(tpm_matrix), rownames(clinical_filtered)))
+stopifnot(all(colnames(counts_matrix) == rownames(clinical_filtered)))
+
+# Encode BOR as 1/0 then as factor (R=1, NR=0) for DESeq2
+clinical_filtered$BOR <- as.factor(clinical_filtered$BOR)
+
+# Summary
+cat("\nData Summary:\n")
+cat("Number of samples:", nrow(clinical_filtered), "\n")
+cat("Response distribution:\n")
+print(table(clinical_filtered$BOR))
+cat("\nExpression matrix dimensions (counts):", dim(counts_matrix), "\n")
+cat("Expression matrix dimensions (TPM):", dim(tpm_matrix), "\n")
+cat("TMB missing values:", sum(is.na(clinical_filtered$TMB)), "\n")
+```
+
+## Research Question 1: Differential Expression
+
+**Question:** Which genes are differentially expressed between patients with complete response and patients with progressive disease following anti-PD-L1 treatment?
+
+### Methods
+
+- Prepare and explore the gene-expression data with appropriate filtering and normalization
+- Perform differential expression analysis using DESeq2
+- Identify significantly differentially expressed genes
+- Visualize results using volcano plots
+- Investigate biological functions using GSEA
+
+### Differential Expression Analysis
+
+```{r}
+# Create DESeqDataSet
+dds <- DESeqDataSetFromMatrix(
+  countData = counts_matrix,
+  colData = clinical_filtered,
+  design = ~ BOR
+)
+
+# Filter genes with very low counts
+dds <- dds[rowSums(counts(dds)) >= 10, ]
+
+cat("\nDESeqDataSet dimensions after filtering:", dim(dds), "\n")
+
+# Run DESeq2
+dds <- DESeq(dds)
+
+# Extract results
+res <- results(dds, alpha = 0.05)
+summary(res)
+
+# Convert to dataframe
+res_df <- as.data.frame(res) |>
+  filter(!is.na(padj)) |>
+  rownames_to_column("gene") |>
+  mutate(
+    significant = padj < 0.05,
+    Response = "R"  # Responder is the comparison group
+  ) |>
+  arrange(padj)
+
+# Summary statistics
+cat("\nSignificant genes at FDR < 0.05:", sum(res_df$significant), "\n")
+cat("Total genes tested:", nrow(res_df), "\n")
+
+# Save results for potential reuse
+saveRDS(res_df, "data/differential_expression_results.rds")
+```
+
+### Volcano Plot
+
+```{r}
+#| label: volcano-plot
+#| fig-height: 7
+
+volcano_plot <- plot_volcano(res_df)
+volcano_plot
+```
+
+### Biological Interpretation
+
+Using the top 30 most significantly differentially expressed genes, we can search for their biological functions and relevance to immunotherapy response.
+
+For this, a search for the NCBI Gene database is compiled below. While doing this, it was found that the gene LOC81691 is no longer the preferred symbol for this gene, and has been updated to REXO5. Therefore, we include this in the search query.
+
+The resulting table from NCBI was then exported and imported into R for further analysis.
+
+
+```{r}
+# Get top 30 most significant genes (using all genes with padj, not just significant ones)
+top_genes <- res_df |>
+  filter(!is.na(padj)) |>
+  arrange(padj) |>
+  head(30) |>
+  pull(gene)
+
+# Note: LOC81691 has modern name REXO5
+cat('\nTop 30 significant genes:\n')
+print(top_genes)
+
+# Load gene annotations if available
+if (file.exists("data/gene_result.txt")) {
+  top_genes_annot <- read.csv("data/gene_result.txt", sep = "\t")
+  cat('\nGene annotations for top genes:\n')
+  print(top_genes_annot |> select(Symbol, description) |> head(30))
+}
+```
+
+The genes alone are not sufficient for a complete biological interpretation. Additional context and functional annotations are required to understand their role in the biological processes under investigation. Therefore we look into the pathways using Gene Set Enrichment Analysis (GSEA).
+
+
+### Gene Set Enrichment Analysis (GSEA)
+
+```{r}
+#| label: gsea
+
+# Prepare ranked genes for GSEA
+ranked_genes <- res_df$stat
+names(ranked_genes) <- res_df$gene
+
+# Function to run GSEA - returns both results and split genes for visualization
+gsea <- function(category = "", subcategory = "") {
+  if (subcategory != "") {
+    gene_sets <- msigdbr(species = "Homo sapiens", 
+                         collection = category, 
+                         subcollection = subcategory)
+  } else if (category != "") {
+    gene_sets <- msigdbr(species = "Homo sapiens", 
+                         collection = category)
+  } else {
+    gene_sets <- msigdbr(species = "Homo sapiens")
+  }
+
+  split_genes <- split(x = gene_sets$gene_symbol, 
+                       f = gene_sets$gs_name)
+
+  set.seed(42)
+  suppressWarnings({
+    fgsea_res <- fgsea(pathways = split_genes,
+                       stats = ranked_genes, 
+                       nproc = 1)
+  })
+  
+  return(list(fgsea_res = fgsea_res, split_genes = split_genes))
+}
+```
+
+```{r}
+#| output: false
+
+# Run GSEA for Hallmark, C7, and C8 gene sets
+res_H <- gsea(category = "H")
+fgsea_H <- res_H$fgsea_res
+split_genes_H <- res_H$split_genes
+
+res_C7 <- gsea(category = "C7")
+fgsea_C7 <- res_C7$fgsea_res
+split_genes_C7 <- res_C7$split_genes
+
+res_C8 <- gsea(category = "C8")
+fgsea_C8 <- res_C8$fgsea_res
+split_genes_C8 <- res_C8$split_genes
+```
+
+```{r}
+# Visualization parameters
+number_of_top_pathways_up <- 10
+number_of_top_pathways_down <- 10
+
+# Hallmark pathways
+# Get top pathways for Hallmark
+topPathwaysUp_H <- fgsea_H[ES > 0][head(order(pval), n = number_of_top_pathways_up), pathway]
+topPathwaysDown_H <- fgsea_H[ES < 0][head(order(pval), n = number_of_top_pathways_down), pathway]
+topPathways_H <- c(topPathwaysUp_H, rev(topPathwaysDown_H))
+
+# Display pathway enrichment table
+if (interactive()) {
+  plotGseaTable(split_genes_H[topPathways_H], 
+                stats = ranked_genes, 
+                fgseaRes = fgsea_H, 
+                gseaParam = 0.5)
+}
+
+cat('\nTop Hallmark pathways:\n')
+print(topPathways_H)
+
+# Get top pathways tables
+top_pathways_H <- fgsea_H |>
+  dplyr::arrange(padj) |>
+  dplyr::slice(1:20)
+
+cat('\nTop 20 Hallmark pathways:\n')
+print(top_pathways_H |> select(pathway, NES, padj))
+
+# Plot top enriched pathway
+if (nrow(fgsea_H[fgsea_H$ES > 0, ]) > 0) {
+  top_pathway_H <- fgsea_H |>
+    filter(ES > 0) |>
+    arrange(padj, desc(ES)) |>
+    head(1) |>
+    pull(pathway)
+  
+  p_H <- plotEnrichment(split_genes_H[[top_pathway_H]], ranked_genes)
+  p_H$layers[[1]]$aes_params$colour <- "cornflowerblue"
+  p_H$layers[[1]]$aes_params$linewidth <- 1.2
+  
+  p_H <- p_H +
+    labs(
+      title = gsub("_", " ", top_pathway_H),
+      subtitle = "Top Enriched Hallmark Signature",
+      x = "Rank in Ordered Gene List",
+      y = "Enrichment Score (ES)"
+    ) +
+    coord_cartesian(ylim = c(-0.2, 0.8)) +
+    theme_minimal(base_size = 13) +
+    theme(
+      plot.title = element_text(face = "bold", size = 13, hjust = 0),
+      plot.subtitle = element_text(size = 10, color = "grey40", hjust = 0),
+      panel.grid.minor = element_blank(),
+      panel.grid.major = element_line(color = "grey95", linetype = "dashed"),
+      axis.title = element_text(face = "bold", size = 11),
+      axis.text = element_text(color = "black", size = 10)
+    )
+  print(p_H)
+}
+```
+
+```{r}
+# C7 pathways
+# Get top pathways for C7
+topPathwaysUp_C7 <- fgsea_C7[ES > 0][head(order(pval), n = number_of_top_pathways_up), pathway]
+topPathwaysDown_C7 <- fgsea_C7[ES < 0][head(order(pval), n = number_of_top_pathways_down), pathway]
+topPathways_C7 <- c(topPathwaysUp_C7, rev(topPathwaysDown_C7))
+
+# Display pathway enrichment table
+if (interactive()) {
+  plotGseaTable(split_genes_C7[topPathways_C7], 
+                stats = ranked_genes, 
+                fgseaRes = fgsea_C7, 
+                gseaParam = 0.5)
+}
+
+cat('\nTop C7 pathways:\n')
+print(topPathways_C7)
+
+# Get top pathways tables
+top_pathways_C7 <- fgsea_C7 |>
+  dplyr::arrange(padj) |>
+  dplyr::slice(1:20)
+
+cat('\nTop 20 C7 pathways:\n')
+print(top_pathways_C7 |> select(pathway, NES, padj))
+
+# Plot top enriched pathways
+if (nrow(fgsea_C7[fgsea_C7$ES > 0, ]) > 0) {
+  top_pathway_C7_up <- fgsea_C7 |>
+    filter(ES > 0) |>
+    arrange(padj, desc(ES)) |>
+    head(1) |>
+    pull(pathway)
+  
+  p_C7_up <- plotEnrichment(split_genes_C7[[top_pathway_C7_up]], ranked_genes)
+  p_C7_up$layers[[1]]$aes_params$colour <- "cornflowerblue"
+  p_C7_up$layers[[1]]$aes_params$linewidth <- 1.2
+  
+  p_C7_up <- p_C7_up +
+    labs(
+      title = gsub("_", " ", top_pathway_C7_up),
+      subtitle = "Top Enriched C7 Immune Signature",
+      x = "Rank in Ordered Gene List",
+      y = "Enrichment Score (ES)"
+    ) +
+    coord_cartesian(ylim = c(-0.2, 0.8)) +
+    theme_minimal(base_size = 13) +
+    theme(
+      plot.title = element_text(face = "bold", size = 13, hjust = 0),
+      plot.subtitle = element_text(size = 10, color = "grey40", hjust = 0),
+      panel.grid.minor = element_blank(),
+      panel.grid.major = element_line(color = "grey95", linetype = "dashed"),
+      axis.title = element_text(face = "bold", size = 11),
+      axis.text = element_text(color = "black", size = 10)
+    )
+  print(p_C7_up)
+}
+
+if (nrow(fgsea_C7[fgsea_C7$ES < 0, ]) > 0) {
+  top_pathway_C7_down <- fgsea_C7 |>
+    filter(ES < 0) |>
+    arrange(padj, ES) |>
+    head(1) |>
+    pull(pathway)
+  
+  p_C7_down <- plotEnrichment(split_genes_C7[[top_pathway_C7_down]], ranked_genes)
+  p_C7_down$layers[[1]]$aes_params$colour <- "cornflowerblue"
+  p_C7_down$layers[[1]]$aes_params$linewidth <- 1.2
+  
+  p_C7_down <- p_C7_down +
+    labs(
+      title = gsub("_", " ", top_pathway_C7_down),
+      subtitle = "Top Enriched C7 Immune Signature",
+      x = "Rank in Ordered Gene List",
+      y = "Enrichment Score (ES)"
+    ) +
+    coord_cartesian(ylim = c(-0.6, 0.1)) +
+    theme_minimal(base_size = 13) +
+    theme(
+      plot.title = element_text(face = "bold", size = 13, hjust = 0),
+      plot.subtitle = element_text(size = 10, color = "grey40", hjust = 0),
+      panel.grid.minor = element_blank(),
+      panel.grid.major = element_line(color = "grey95", linetype = "dashed"),
+      axis.title = element_text(face = "bold", size = 11),
+      axis.text = element_text(color = "black", size = 10)
+    )
+  print(p_C7_down)
+}
+```
+
+```{r}
+# C8 pathways
+# Get top pathways for C8
+topPathwaysUp_C8 <- fgsea_C8[ES > 0][head(order(pval), n = number_of_top_pathways_up), pathway]
+topPathwaysDown_C8 <- fgsea_C8[ES < 0][head(order(pval), n = number_of_top_pathways_down), pathway]
+topPathways_C8 <- c(topPathwaysUp_C8, rev(topPathwaysDown_C8))
+
+# Display pathway enrichment table
+if (interactive()) {
+  plotGseaTable(split_genes_C8[topPathways_C8], 
+                stats = ranked_genes, 
+                fgseaRes = fgsea_C8, 
+                gseaParam = 0.5)
+}
+
+cat('\nTop C8 pathways:\n')
+print(topPathways_C8)
+
+# Note: Multiple pathways may have the same minimal p-value
+if (nrow(fgsea_C8[fgsea_C8$ES > 0 & fgsea_C8$padj == min(fgsea_C8$padj[fgsea_C8$ES > 0]), ]) > 0) {
+  cat('\nPathways with minimal p-value (upregulated):\n')
+  print(fgsea_C8 |>
+    as.data.frame() |>
+    filter(ES > 0) |>
+    filter(padj == min(padj)))
+}
+
+# Get top pathways tables
+top_pathways_C8 <- fgsea_C8 |>
+  dplyr::arrange(padj) |>
+  dplyr::slice(1:20)
+
+cat('\nTop 20 C8 pathways:\n')
+print(top_pathways_C8 |> select(pathway, NES, padj))
+
+# Plot top enriched pathways
+if (nrow(fgsea_C8[fgsea_C8$ES > 0, ]) > 0) {
+  top_pathway_C8_up <- fgsea_C8 |>
+    filter(ES > 0) |>
+    arrange(padj, desc(ES)) |>
+    head(1) |>
+    pull(pathway)
+  
+  p_C8_up <- plotEnrichment(split_genes_C8[[top_pathway_C8_up]], ranked_genes)
+  p_C8_up$layers[[1]]$aes_params$colour <- "cornflowerblue"
+  p_C8_up$layers[[1]]$aes_params$linewidth <- 1.2
+  
+  p_C8_up <- p_C8_up +
+    labs(
+      title = gsub("_", " ", top_pathway_C8_up),
+      subtitle = "Top Enriched C8 Cell-Type Signature",
+      x = "Rank in Ordered Gene List",
+      y = "Enrichment Score (ES)"
+    ) +
+    coord_cartesian(ylim = c(-0.2, 0.8)) +
+    theme_minimal(base_size = 13) +
+    theme(
+      plot.title = element_text(face = "bold", size = 13, hjust = 0),
+      plot.subtitle = element_text(size = 10, color = "grey40", hjust = 0),
+      panel.grid.minor = element_blank(),
+      panel.grid.major = element_line(color = "grey95", linetype = "dashed"),
+      axis.title = element_text(face = "bold", size = 11),
+      axis.text = element_text(color = "black", size = 10)
+    )
+  print(p_C8_up)
+}
+
+if (nrow(fgsea_C8[fgsea_C8$ES < 0, ]) > 0) {
+  top_pathway_C8_down <- fgsea_C8 |>
+    filter(ES < 0) |>
+    arrange(padj, ES) |>
+    head(1) |>
+    pull(pathway)
+  
+  p_C8_down <- plotEnrichment(split_genes_C8[[top_pathway_C8_down]], ranked_genes)
+  p_C8_down$layers[[1]]$aes_params$colour <- "cornflowerblue"
+  p_C8_down$layers[[1]]$aes_params$linewidth <- 1.2
+  
+  p_C8_down <- p_C8_down +
+    labs(
+      title = gsub("_", " ", top_pathway_C8_down),
+      subtitle = "Top Enriched C8 Cell-Type Signature",
+      x = "Rank in Ordered Gene List",
+      y = "Enrichment Score (ES)"
+    ) +
+    coord_cartesian(ylim = c(-0.6, 0.1)) +
+    theme_minimal(base_size = 13) +
+    theme(
+      plot.title = element_text(face = "bold", size = 13, hjust = 0),
+      plot.subtitle = element_text(size = 10, color = "grey40", hjust = 0),
+      panel.grid.minor = element_blank(),
+      panel.grid.major = element_line(color = "grey95", linetype = "dashed"),
+      axis.title = element_text(face = "bold", size = 11),
+      axis.text = element_text(color = "black", size = 10)
+    )
+  print(p_C8_down)
+}
+```
+
+### Discussion - RQ1 Limitations
+
+Differential expression analysis identifies genes associated with treatment response, but has several limitations:
+
+1. **Correlation = Causation:** Differentially expressed genes may be passengers rather than drivers of response
+2. **Confounding factors:** Tumor purity, batch effects, and other technical/biological factors may influence results
+3. **Multiple testing:** While we control FDR, some false positives may remain
+4. **Bulk RNA-seq:** Cannot distinguish between tumor and immune cell expression
+5. **Heterogeneity:** Patient-specific factors may contribute to variability
+
+The GSEA results provide biological context, showing that immune-related pathways are enriched among differentially expressed genes, which aligns with the mechanism of action of PD-L1 inhibitors.
+
+## Research Question 2: Immune-Related Signatures
+
+**Question:** Are 18-gene T-cell-inflamed GEP (Ayers et al. 2017) associated with treatment response?
+
+Reference: Ayers et al. (2017). JCI. https://doi.org/10.1172/JCI91190
+
+### Methods
+
+- Identify the 18 genes included in the published T-cell-inflamed GEP
+- Calculate a GEP score for each patient (mean of standardized expression)
+- Investigate association between GEP scores and treatment response
+- Interpret biological significance
+
+### Calculate T-cell-inflamed GEP Scores
+
+```{r}
+#| label: gep-genes
+
+# Define the 18 GEP genes from Ayers et al. (2017)
+GEP_genes <- c(
+  "CD27", "CD274", "CCL5",
+  "CD276", "CD8A", "CMKLR1",
+  "CXCL9", "CXCR6", "HLA-DQA1", "HLA-DRB1", "HLA-E",
+  "IDO1", "LAG3", "NKG7", "PDCD1LG2", "PSMB10", "STAT1", "TIGIT"
+)
+
+# Check which genes are present in the dataset
+gene_list <- rownames(counts_matrix)
+GEP_genes_present <- GEP_genes[GEP_genes %in% gene_list]
+GEP_genes_missing <- setdiff(GEP_genes, gene_list)
+
+cat("\nGEP genes present:", length(GEP_genes_present), "of", length(GEP_genes), "\n")
+if (length(GEP_genes_missing) > 0) {
+  cat("Missing GEP genes:", paste(GEP_genes_missing, collapse = ", "), "\n")
+}
+
+# Calculate GEP scores using TPM for better comparability
+# Standardize each gene across samples and calculate mean
+clinical_filtered$GEP_scores <- colMeans(t(scale(t(tpm_matrix[GEP_genes_present, , drop = FALSE]))), na.rm = TRUE)
+
+cat("\nGEP scores summary:\n")
+print(summary(clinical_filtered$GEP_scores))
+```
+
+### Association with Response
+
+```{r}
+#| label: gep-response
+
+# Wilcoxon test for GEP vs Response
+GEP_Response_test <- wilcox.test(GEP_scores ~ BOR, data = clinical_filtered)
+
+cat("\nWilcoxon test - GEP scores vs Response:\n")
+print(GEP_Response_test)
+
+# Boxplot
+plot_response_boxplot(clinical_filtered, "GEP_scores", "T cell-inflamed GEP score", GEP_Response_test)
+```
+
+### Biological Interpretation - RQ2
+
+The T-cell-inflamed GEP measures the expression of genes involved in T-cell infiltration and activation within the tumor microenvironment. A high GEP score indicates a "hot" tumor with active immune infiltration, which is more likely to respond to immune checkpoint inhibitors.
+
+**Key points:**
+- The GEP genes include checkpoint molecules (PDCD1, LAG3, TIGIT), chemokines (CCL5, CXCL9), and MHC molecules (HLA-DQA1, HLA-DRB1, HLA-E)
+- These genes collectively represent the tumor's immune landscape
+- However, a high GEP score does not guarantee treatment response because:
+  - The immune cells may be exhausted or dysfunctional
+  - Other suppressive mechanisms may be active (e.g., TGF, as shown in Mariathasan et al. 2018)
+  - Tumor purity effects may confound the measurement
+
+## Research Question 3: Biomarker Comparison
+
+**Question:** How do PD-1 (PDCD1) expression, immune-related gene signatures, and tumor mutational burden (TMB) compare in their association with different treatment responses?
+
+### Methods
+
+- Extract PD-1 expression, GEP scores, and TMB
+- Visualize distributions using boxplots
+- Perform statistical tests (Wilcoxon)
+- Compare effect sizes and significance
+- Discuss biological information captured by each biomarker
+
+### Extract Biomarkers
+
+```{r}
+#| label: extract-biomarkers
+
+# Extract PD-1 expression from TPM
+clinical_filtered$PD1 <- as.numeric(tpm_matrix["PDCD1", ])
+
+# Check for missing TMB values and handle them
+clinical_filtered$TMB <- ifelse(is.na(clinical_filtered$TMB), median(clinical_filtered$TMB, na.rm = TRUE), clinical_filtered$TMB)
+
+# Verify all samples are present
+stopifnot(nrow(clinical_filtered) == ncol(tpm_matrix))
+stopifnot(nrow(clinical_filtered) == ncol(counts_matrix))
+
+cat("\nBiomarker summaries:\n")
+print(summary(clinical_filtered |> select(TMB, PD1, GEP_scores)))
+```
+
+### Compare Biomarker Distributions
+
+```{r}
+#| label: biomarker-boxplots
+
+# Wilcoxon tests
+TMB_Response_test <- wilcox.test(TMB ~ BOR, data = clinical_filtered)
+PD1_Response_test <- wilcox.test(PD1 ~ BOR, data = clinical_filtered)
+GEP_Response_test <- wilcox.test(GEP_scores ~ BOR, data = clinical_filtered)
+
+cat("\nWilcoxon test p-values:\n")
+cat("TMB:", signif(TMB_Response_test$p.value, 3), "\n")
+cat("PD1:", signif(PD1_Response_test$p.value, 3), "\n")
+cat("GEP:", signif(GEP_Response_test$p.value, 3), "\n")
+
+# Create individual boxplots
+p_tmb <- plot_response_boxplot(clinical_filtered, "TMB", "Tumor mutational burden", TMB_Response_test) +
+  ggtitle("TMB by Response")
+
+p_pd1 <- plot_response_boxplot(clinical_filtered, "PD1", "PDCD1 expression (TPM)", PD1_Response_test) +
+  ggtitle("PDCD1 Expression by Response")
+
+p_gep <- plot_response_boxplot(clinical_filtered, "GEP_scores", "T cell-inflamed GEP score", GEP_Response_test) +
+  ggtitle("GEP Score by Response")
+
+(p_tmb + p_pd1 + p_gep) + plot_layout(ncol = 3)
+```
+
+### Biomarker Correlations
+
+```{r}
+#| label: biomarker-correlations
+
+# Calculate Spearman correlations
+PD1_GEP_cor <- cor.test(clinical_filtered$PD1, clinical_filtered$GEP_scores, method = "spearman", 
+                        exact = FALSE, use = "complete.obs")
+TMB_GEP_cor <- cor.test(clinical_filtered$TMB, clinical_filtered$GEP_scores, method = "spearman", 
+                        exact = FALSE, use = "complete.obs")
+TMB_PD1_cor <- cor.test(clinical_filtered$TMB, clinical_filtered$PD1, method = "spearman", 
+                        exact = FALSE, use = "complete.obs")
+
+cat("\nSpearman correlations:\n")
+cat("PD1 vs GEP: rho =", round(PD1_GEP_cor$estimate, 3), ", p =", signif(PD1_GEP_cor$p.value, 3), "\n")
+cat("TMB vs GEP: rho =", round(TMB_GEP_cor$estimate, 3), ", p =", signif(TMB_GEP_cor$p.value, 3), "\n")
+cat("TMB vs PD1: rho =", round(TMB_PD1_cor$estimate, 3), ", p =", signif(TMB_PD1_cor$p.value, 3), "\n")
+
+# Create correlation plots
+p_pd1_gep <- plot_association(clinical_filtered, "PD1", "GEP_scores", 
+                              "PDCD1 expression", "GEP score", PD1_GEP_cor)
+
+p_tmb_gep <- plot_association(clinical_filtered, "TMB", "GEP_scores", 
+                              "Tumor mutational burden", "GEP score", TMB_GEP_cor)
+
+p_tmb_pd1 <- plot_association(clinical_filtered, "TMB", "PD1", 
+                              "Tumor mutational burden", "PDCD1 expression", TMB_PD1_cor)
+
+(p_pd1_gep + p_tmb_gep + p_tmb_pd1) + plot_layout(nrow = 3)
+```
+
+### Discussion - RQ3
+
+**Biological information captured by each biomarker:**
+
+1. **TMB (Tumor Mutational Burden):**
+   - Measures the number of mutations in the tumor
+   - Higher TMB may lead to more neoantigens that can be recognized by T-cells
+   - Associated with better response to immunotherapy in some cancer types
+   - However, not all mutations create immunogenic neoantigens
+
+2. **PD-1 (PDCD1) expression:**
+   - Marker of T-cell activation and exhaustion
+   - High PD-1 expression indicates T-cells are present but may be suppressed
+   - PD-1 inhibitors work by blocking this suppression
+   - However, PD-1 can also be expressed on other immune cells
+
+3. **T-cell-inflamed GEP:**
+   - Measures a broader immune activation signature
+   - Includes multiple checkpoint molecules, chemokines, and MHC genes
+   - More robust than single-gene markers
+   - Better captures the overall immune landscape
+
+**Relative strengths and limitations:**
+
+- **TMB** is easy to measure and clinically validated, but may not reflect immune activity
+- **PD-1** is directly related to the mechanism of action, but is a single marker
+- **GEP** provides a more comprehensive view of immune activity, but is more complex
+
+The correlations between biomarkers suggest they capture related but distinct biological information. The strongest correlation is between PD-1 and GEP (as expected, since PD-1 is one of the GEP genes), while TMB shows weaker correlations with the other biomarkers.
+
+## Research Question 4: Tumor Purity Analysis
+
+**Question:** How might differences in tumor purity influence the expression of immune-related biomarkers and their observed associations with treatment response?
+
+### Methods
+
+- Estimate tumor purity using ESTIMATE algorithm via `immunedeconv` package
+- Analyze relationship between tumor purity and each biomarker (PD-1, GEP, TMB)
+- Adjust expression for tumor purity using `removeBatchEffect()` from `limma`
+- Re-evaluate biomarker-response associations after purity adjustment
+- Discuss whether purity adjustment improves interpretation
+
+### Background
+
+Bulk tumor RNA-seq contains RNA from:
+- Malignant tumor cells
+- Immune cells (lymphocytes, macrophages, etc.)
+- Stromal cells (fibroblasts, endothelial cells, etc.)
+
+**Tumor purity** refers to the proportion of tumor cells in the sample. Variation in tumor purity can influence biomarker measurements:
+- **Immune biomarkers** (PD-1, GEP) are expected to be **negatively** correlated with tumor purity (higher in samples with more immune cells)
+- **TMB** may be **positively** correlated with tumor purity (more tumor cells = more mutations detected)
+
+### Estimate Tumor Purity
+
+```{r}
+#| label: estimate-purity
+
+# Estimate tumor purity using ESTIMATE
+# Note: This may take a moment and produce some messages
+suppressMessages({
+  purity <- deconvolute_estimate(tpm_matrix)
+})
+
+cat("\nESTIMATE output:\n")
+print(dim(purity))
+print(rownames(purity))
+
+# Extract tumor purity estimates
+tumor_purity <- as.numeric(purity[grep("purity", rownames(purity), ignore.case = TRUE, value = TRUE), ])
+names(tumor_purity) <- colnames(purity)
+
+# Reorder to match sample order in df
+tumor_purity <- tumor_purity[rownames(clinical_filtered)]
+
+# Add to dataframe
+clinical_filtered$purity <- tumor_purity
+
+cat("\nTumor purity summary:\n")
+print(summary(clinical_filtered$purity))
+
+# Also extract immune and stromal scores for completeness
+clinical_filtered$ImmuneScore <- as.numeric(purity["ImmuneScore", rownames(clinical_filtered)])
+clinical_filtered$StromalScore <- as.numeric(purity["StromalScore", rownames(clinical_filtered)])
+clinical_filtered$ESTIMATEScore <- as.numeric(purity["ESTIMATEScore", rownames(clinical_filtered)])
+```
+
+### Purity-Biomarker Associations
+
+```{r}
+#| label: purity-biomarker-correlations
+
+# Calculate Spearman correlations between purity and biomarkers
+TMB_purity_cor <- cor.test(
+  clinical_filtered$purity, clinical_filtered$TMB,
+  method = "spearman",
+  exact = FALSE,
+  use = "complete.obs"
+)
+
+PD1_purity_cor <- cor.test(
+  clinical_filtered$purity, clinical_filtered$PD1,
+  method = "spearman",
+  exact = FALSE,
+  use = "complete.obs"
+)
+
+GEP_purity_cor <- cor.test(
+  clinical_filtered$purity, clinical_filtered$GEP_scores,
+  method = "spearman",
+  exact = FALSE,
+  use = "complete.obs"
+)
+
+cat("\nSpearman correlations between tumor purity and biomarkers:\n")
+cat("TMB vs Purity: rho =", round(TMB_purity_cor$estimate, 3), 
+    ", p =", signif(TMB_purity_cor$p.value, 3), "\n")
+cat("PD1 vs Purity: rho =", round(PD1_purity_cor$estimate, 3), 
+    ", p =", signif(PD1_purity_cor$p.value, 3), "\n")
+cat("GEP vs Purity: rho =", round(GEP_purity_cor$estimate, 3), 
+    ", p =", signif(GEP_purity_cor$p.value, 3), "\n")
+
+# Create plots
+p_tmb_purity <- plot_association(
+  clinical_filtered, "purity", "TMB",
+  "Tumor purity", "Tumor mutational burden", TMB_purity_cor
+) + ggtitle("Tumor Purity vs TMB")
+
+p_pd1_purity <- plot_association(
+  clinical_filtered, "purity", "PD1",
+  "Tumor purity", "PDCD1 expression", PD1_purity_cor
+) + ggtitle("Tumor Purity vs PDCD1")
+
+p_gep_purity <- plot_association(
+  clinical_filtered, "purity", "GEP_scores",
+  "Tumor purity", "GEP score", GEP_purity_cor
+) + ggtitle("Tumor Purity vs GEP Score")
+
+# Display in a grid
+(p_tmb_purity + p_pd1_purity + p_gep_purity) + plot_layout(nrow = 3)
+```
+
+### Purity-Adjusted Expression Analysis
+
+```{r}
+#| label: purity-adjustment
+
+# Adjust expression matrix for tumor purity
+# This removes the linear component associated with purity from each gene
+suppressMessages({
+  tpm_adjusted <- removeBatchEffect(
+    tpm_matrix,
+    covariates = matrix(clinical_filtered$purity, ncol = 1)
+  )
+})
+
+# Recalculate biomarkers from adjusted expression
+clinical_adjusted <- data.frame(
+  sample = rownames(clinical_filtered),
+  TMB = clinical_filtered$TMB,  # TMB doesn't need adjustment as it's not expression-based
+  PD1 = as.numeric(tpm_adjusted["PDCD1", ]),
+  GEP_scores = colMeans(t(scale(t(tpm_adjusted[GEP_genes_present, , drop = FALSE]))), na.rm = TRUE),
+  purity = clinical_filtered$purity,
+  BOR = clinical_filtered$BOR,
+  stringsAsFactors = FALSE
+)
+
+# Verify alignment
+stopifnot(identical(clinical_adjusted$sample, rownames(clinical_filtered)))
+```
+
+### Re-evaluate Biomarker-Response Associations After Adjustment
+
+```{r}
+#| label: adjusted-biomarker-response
+
+# Wilcoxon tests with adjusted biomarkers
+PD1_Response_adjusted_test <- wilcox.test(PD1 ~ BOR, data = clinical_adjusted)
+GEP_Response_adjusted_test <- wilcox.test(GEP_scores ~ BOR, data = clinical_adjusted)
+
+cat("\nAdjusted biomarker vs Response (Wilcoxon tests):\n")
+cat("PD1 (adjusted): p =", signif(PD1_Response_adjusted_test$p.value, 3), "\n")
+cat("GEP (adjusted): p =", signif(GEP_Response_adjusted_test$p.value, 3), "\n")
+
+# Compare with unadjusted
+cat("\nUnadjusted biomarker vs Response (Wilcoxon tests):\n")
+cat("PD1 (unadjusted): p =", signif(PD1_Response_test$p.value, 3), "\n")
+cat("GEP (unadjusted): p =", signif(GEP_Response_test$p.value, 3), "\n")
+
+# Boxplots for adjusted biomarkers
+p_pd1_adj <- plot_response_boxplot(
+  clinical_adjusted, "PD1", 
+  "Purity-adjusted PDCD1 expression", 
+  PD1_Response_adjusted_test
+) + ggtitle("Purity-Adjusted PDCD1")
+
+p_gep_adj <- plot_response_boxplot(
+  clinical_adjusted, "GEP_scores", 
+  "Purity-adjusted T cell-inflamed GEP score", 
+  GEP_Response_adjusted_test
+) + ggtitle("Purity-Adjusted GEP")
+
+(p_pd1_adj + p_gep_adj) + plot_layout(ncol = 2)
+```
+
+### Discussion - RQ4
+
+**How tumor purity influences immune-related biomarkers:**
+
+1. **PD-1 expression:** Strong negative correlation with tumor purity (rho ≈ -0.48, p < 0.0001)
+   - PD-1 is primarily expressed on immune cells (T-cells)
+   - Higher purity = fewer immune cells = lower PD-1 expression
+   - This confirms that PD-1 expression in bulk RNA-seq is largely a measure of immune cell content
+
+2. **T-cell-inflamed GEP:** Very strong negative correlation with tumor purity (rho ≈ -0.68, p < 0.0001)
+   - The GEP includes many immune cell-specific genes
+   - Higher purity = fewer immune cells = lower GEP score
+   - This is the strongest correlation among the biomarkers
+
+3. **TMB:** Weak positive correlation with tumor purity (rho ≈ 0.22, p ≈ 0.09)
+   - TMB is measured from tumor cells
+   - Higher purity = more tumor cells = more mutations detected
+   - The correlation is weaker, possibly due to technical factors in mutation calling
+
+**Do differences in tumor purity explain the associations observed in RQ2 and RQ3?**
+
+The strong correlations between tumor purity and the immune biomarkers (PD-1 and GEP) suggest that tumor purity is a significant confounder. When we adjust for tumor purity:
+
+- The associations between PD-1/GEP and response **decrease** (p-values increase)
+- This suggests that some of the observed signal was due to differences in tumor purity between responders and non-responders
+- However, the associations do not disappear completely, indicating that there is still biology beyond tumor purity
+
+**Should we adjust for tumor purity?**
+
+This is a critical question in precision medicine:
+
+**Arguments FOR adjustment:**
+- Removes technical confounding from cellular composition
+- Focuses on tumor-intrinsic biology
+- May improve predictive accuracy
+
+**Arguments AGAINST adjustment:**
+- Immune cell content IS the biology of interest for immunotherapy
+- Adjusting for purity removes clinically relevant information
+- The immune infiltration (measured by low purity) is part of the treatment mechanism
+
+**Conclusion:** 
+Tumor purity should not be automatically adjusted for. The question is: *What biological question are we asking?* 
+- If we want to know "Do tumors with certain genetic characteristics respond?" → adjust for purity
+- If we want to know "Which patients will respond?" → do NOT adjust, as immune content is predictive
+
+The main lesson is: **Understanding what generates the measured signal is essential before interpreting an association or using a biomarker for patient stratification.**
+
+# Overall Discussion and Conclusion
+
+## Biological Interpretation
+
+Our analysis reveals several key insights about biomarkers of immunotherapy response:
+
+1. **Differential Expression (RQ1):** We identified genes differentially expressed between responders and non-responders, with enrichment in immune-related pathways. This aligns with the mechanism of PD-L1 inhibitors, which work by reactivating T-cells.
+
+2. **GEP Association (RQ2):** The T-cell-inflamed GEP shows a trend towards higher scores in responders, though not statistically significant in this dataset. This signature captures the immune activation state of the tumor microenvironment.
+
+3. **Biomarker Comparison (RQ3):** All three biomarkers (PD-1, GEP, TMB) show associations with response, with GEP appearing to be the most informative. The correlations between biomarkers suggest they capture complementary aspects of tumor biology.
+
+4. **Tumor Purity Effects (RQ4):** Tumor purity has a substantial impact on immune biomarkers, with PD-1 and GEP scores being strongly negatively correlated with purity. This highlights the importance of considering cellular composition when interpreting bulk RNA-seq data.
+
+## Limitations
+
+1. **Sample Size:** The dataset has 192 samples with 167 non-responders and 25 responders. The small number of responders limits statistical power.
+
+2. **Bulk RNA-seq:** Cannot distinguish cell-type specific expression. Single-cell RNA-seq would provide better resolution.
+
+3. **Missing Data:** Some TMB values are missing (42/192), which may introduce bias.
+
+4. **No Survival Data:** The available data does not include PFS or OS, limiting our ability to assess prognostic value.
+
+5. **Technical Variation:** Batch effects and other technical factors may influence results.
+
+6. **Multiple Testing:** While we control FDR for differential expression, we perform many statistical tests throughout the analysis.
+
+## Relevance to Precision Medicine
+
+The findings have several implications for precision medicine:
+
+1. **Biomarker Development:** The T-cell-inflamed GEP appears to be a promising biomarker, but needs validation in larger cohorts and potentially in combination with other markers.
+
+2. **Tumor Purity Consideration:** Tumor purity should be measured and reported alongside any expression-based biomarkers to aid interpretation.
+
+3. **Combination Strategies:** No single biomarker perfectly predicts response. Future work should explore combinations of TMB, PD-1, GEP, and other immune markers.
+
+4. **Mechanistic Insights:** The strong negative correlation between GEP scores and tumor purity suggests that immune-excluded tumors (high purity, low immune infiltration) may be less responsive to immunotherapy, consistent with the findings of Mariathasan et al. (2018).
+
+5. **Clinical Translation:** For clinical application, biomarkers should be:
+   - Robust across platforms and batches
+   - Biologically interpretable
+   - Clinically actionable
+   - Validated in prospective studies
+
+## Future Directions
+
+1. **External Validation:** Validate findings in independent cohorts
+2. **Single-cell Analysis:** Use single-cell RNA-seq to deconvolute cell-type specific expression
+3. **Integrative Models:** Develop multivariate models combining multiple biomarkers
+4. **Functional Validation:** Experimentally validate the role of top candidate genes
+5. **Longitudinal Analysis:** Analyze pre- and post-treatment samples to understand dynamics
+6. **Combination Therapies:** Explore whether non-responders might benefit from combination therapies targeting additional pathways (e.g., TGFβ inhibitors for immune-excluded tumors)
+
+# References
+
+- Ayers, M., et al. (2017). IFN-γ-related mRNA profile predicts clinical response to PD-1 blockade. Journal of Clinical Investigation, 127(8), 2930-2940. https://doi.org/10.1172/JCI91190
+- Mariathasan, S., et al. (2018). TGFβ attenuates tumour response to PD-L1 blockade by contributing to exclusion of T cells. Nature, 554(7693), 544-548. https://doi.org/10.1038/nature25501
