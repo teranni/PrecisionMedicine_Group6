@@ -1130,7 +1130,7 @@ Our analysis reveals several key insights about biomarkers of immunotherapy resp
 
 1.  **Differential Expression (RQ1):** We identified genes differentially expressed between responders and non-responders, with enrichment in immune-related pathways. This aligns with the mechanism of PD-L1 inhibitors, which work by reactivating T-cells.
 
-2.  **GEP Association (RQ2):** The T-cell-inflamed GEP shows a trend towards higher scores in responders, though not statistically significant in this dataset. This signature captures the immune activation state of the tumor microenvironment.
+2.  **GEP Association (RQ2):** TResponders exhibited significantly higher T-cell-inflamed GEP scores than non-responders (Wilcoxon rank-sum test, p = 0.000153). This suggests that an inflamed tumor microenvironment is associated with better response to anti-PD-L1 therapy. However, the overlap between groups indicates that GEP alone cannot perfectly distinguish responders from non-responders.
 
 3.  **Biomarker Comparison (RQ3):** All three biomarkers (PD-1, GEP, TMB) show associations with response, with GEP appearing to be the most informative. The correlations between biomarkers suggest they capture complementary aspects of tumor biology.
 
