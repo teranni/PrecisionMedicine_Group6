@@ -126,32 +126,6 @@ plot_response_boxplot <- function(data, variable, y_label,
   return(p)
 }
 
-# Helper function for consistent scatter plots with correlation
-plot_association <- function(data, x, y, x_label, y_label, cor_test = NULL) {
-  p <- ggplot(data, aes(x = .data[[x]], y = .data[[y]])) +
-    geom_point(alpha = 0.7) +
-    geom_smooth(method = "lm", se = FALSE, color = "#4E79A7") +
-    labs(
-      x = x_label,
-      y = y_label
-    ) +
-    theme_minimal()
-  
-  if (!is.null(cor_test)) {
-    rho <- if (!is.null(cor_test$estimate)) unname(cor_test$estimate) else NA
-    p <- p + annotate(
-      "text",
-      x = Inf, y = Inf,
-      label = paste0(
-        "Spearman rho = ", ifelse(!is.na(rho), round(rho, 2), "NA"),
-        "\np = ", ifelse(!is.null(cor_test$p.value), signif(cor_test$p.value, 3), "NA")
-      ),
-      hjust = 1.1, vjust = 1.3
-    )
-  }
-  return(p)
-}
-
 # Helper function for volcano plots
 plot_volcano <- function(data, log2fc_col = "log2FoldChange", padj_col = "padj", 
                          gene_col = "gene", significant_col = "significant") {
@@ -854,6 +828,24 @@ kable(summary(clinical_filtered |> select(TMB, PD1, GEP_scores)),
 ```{r}
 #| label: biomarker-boxplots
 
+# Create individual boxplots
+p_tmb <- plot_response_boxplot(clinical_filtered, "TMB", "Tumor mutational burden") +
+  ggtitle("TMB")
+
+p_pd1 <- plot_response_boxplot(clinical_filtered, "PD1", "PDCD1 expression (TPM)") +
+  ggtitle("PDCD1 Expression")
+
+p_gep <- plot_response_boxplot(clinical_filtered, "GEP_scores", "T cell-inflamed GEP score") +
+  ggtitle("GEP Score")
+
+(p_tmb + p_pd1 + p_gep) + plot_layout(ncol = 3)
+```
+
+### Statistical Tests
+
+```{r}
+#| label: biomarker-response-correlations
+
 # Wilcoxon tests
 TMB_Response_test <- wilcox.test(TMB ~ BOR, data = clinical_filtered)
 PD1_Response_test <- wilcox.test(PD1 ~ BOR, data = clinical_filtered)
@@ -866,53 +858,42 @@ kable(dplyr::bind_rows(
   .id = "Marker"
 ) |> dplyr::mutate(p.value = signif(p.value, 3)))
 
-# Create individual boxplots
-p_tmb <- plot_response_boxplot(clinical_filtered, "TMB", "Tumor mutational burden", TMB_Response_test) +
-  ggtitle("TMB by Response")
-
-p_pd1 <- plot_response_boxplot(clinical_filtered, "PD1", "PDCD1 expression (TPM)", PD1_Response_test) +
-  ggtitle("PDCD1 Expression by Response")
-
-p_gep <- plot_response_boxplot(clinical_filtered, "GEP_scores", "T cell-inflamed GEP score", GEP_Response_test) +
-  ggtitle("GEP Score by Response")
-
-(p_tmb + p_pd1 + p_gep) + plot_layout(ncol = 3)
-```
-
-### Biomarker Correlations
-
-```{r}
-#| label: biomarker-correlations
-
 # Calculate Spearman correlations
-PD1_GEP_cor <- cor.test(clinical_filtered$PD1, clinical_filtered$GEP_scores, method = "spearman", 
+clinical_filtered$Response_num <- as.numeric(clinical_filtered$BOR == "R")
+
+PD1_cor <- cor.test(clinical_filtered$PD1, clinical_filtered$Response_num, method = "spearman", 
                         exact = FALSE, use = "complete.obs")
-TMB_GEP_cor <- cor.test(clinical_filtered$TMB, clinical_filtered$GEP_scores, method = "spearman", 
+TMB_cor <- cor.test(clinical_filtered$TMB, clinical_filtered$Response_num, method = "spearman", 
                         exact = FALSE, use = "complete.obs")
-TMB_PD1_cor <- cor.test(clinical_filtered$TMB, clinical_filtered$PD1, method = "spearman", 
+GEP_cor <- cor.test(clinical_filtered$GEP_scores, clinical_filtered$Response_num, method = "spearman", 
                         exact = FALSE, use = "complete.obs")
 
 kable(data.frame(
-  Comparison = c("PD1 vs GEP", "TMB vs GEP", "TMB vs PD1"),
-  rho = round(c(PD1_GEP_cor$estimate,
-                TMB_GEP_cor$estimate,
-                TMB_PD1_cor$estimate), 3),
-  p.value = signif(c(PD1_GEP_cor$p.value,
-                     TMB_GEP_cor$p.value,
-                     TMB_PD1_cor$p.value), 3)
+  Comparison = c("PD1", "TMB", "GEP"),
+  rho = round(c(PD1_cor$estimate,
+                TMB_cor$estimate,
+                GEP_cor$estimate), 3),
+  p.value = signif(c(PD1_cor$p.value,
+                     TMB_cor$p.value,
+                     GEP_cor$p.value), 3)
 ))
+```
 
-# Create correlation plots
-p_pd1_gep <- plot_association(clinical_filtered, "PD1", "GEP_scores", 
-                              "PDCD1 expression", "GEP score", PD1_GEP_cor)
+```{r}
+Purity_Response_test <- wilcox.test(
+  purity ~ BOR,
+  data = clinical_filtered
+)
 
-p_tmb_gep <- plot_association(clinical_filtered, "TMB", "GEP_scores", 
-                              "Tumor mutational burden", "GEP score", TMB_GEP_cor)
+print(Purity_Response_test)
 
-p_tmb_pd1 <- plot_association(clinical_filtered, "TMB", "PD1", 
-                              "Tumor mutational burden", "PDCD1 expression", TMB_PD1_cor)
-
-(p_pd1_gep + p_tmb_gep + p_tmb_pd1) + plot_layout(nrow = 3)
+plot_response_boxplot(
+  clinical_filtered,
+  "purity",
+  "Estimated tumor purity",
+  Purity_Response_test
+) +
+  labs(title = "Tumor purity by treatment response")
 ```
 
 ### Discussion - RQ3
@@ -1170,7 +1151,7 @@ Our analysis reveals several key insights about biomarkers of immunotherapy resp
 
 1.  **Differential Expression (RQ1):** We identified genes differentially expressed between responders and non-responders, with enrichment in immune-related pathways. This aligns with the mechanism of PD-L1 inhibitors, which work by reactivating T-cells.
 
-2.  **GEP Association (RQ2):** The T-cell-inflamed GEP shows a trend towards higher scores in responders, though not statistically significant in this dataset. This signature captures the immune activation state of the tumor microenvironment.
+2.  **GEP Association (RQ2):** TResponders exhibited significantly higher T-cell-inflamed GEP scores than non-responders (Wilcoxon rank-sum test, p = 0.000153). This suggests that an inflamed tumor microenvironment is associated with better response to anti-PD-L1 therapy. However, the overlap between groups indicates that GEP alone cannot perfectly distinguish responders from non-responders.
 
 3.  **Biomarker Comparison (RQ3):** All three biomarkers (PD-1, GEP, TMB) show associations with response, with GEP appearing to be the most informative. The correlations between biomarkers suggest they capture complementary aspects of tumor biology.
 
