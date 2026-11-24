@@ -884,35 +884,25 @@ p_gep <- plot_response_boxplot(clinical_filtered, "GEP_scores", "T cell-inflamed
 ```{r}
 #| label: biomarker-correlations
 
+clinical_filtered$Response_num <- as.numeric(clinical_filtered$BOR == "R")
+
 # Calculate Spearman correlations
-PD1_GEP_cor <- cor.test(clinical_filtered$PD1, clinical_filtered$GEP_scores, method = "spearman", 
+PD1_cor <- cor.test(clinical_filtered$PD1, clinical_filtered$Response_num, method = "spearman", 
                         exact = FALSE, use = "complete.obs")
-TMB_GEP_cor <- cor.test(clinical_filtered$TMB, clinical_filtered$GEP_scores, method = "spearman", 
+TMB_cor <- cor.test(clinical_filtered$TMB, clinical_filtered$Response_num, method = "spearman", 
                         exact = FALSE, use = "complete.obs")
-TMB_PD1_cor <- cor.test(clinical_filtered$TMB, clinical_filtered$PD1, method = "spearman", 
+GEP_cor <- cor.test(clinical_filtered$GEP_scores, clinical_filtered$Response_num, method = "spearman", 
                         exact = FALSE, use = "complete.obs")
 
 kable(data.frame(
-  Comparison = c("PD1 vs GEP", "TMB vs GEP", "TMB vs PD1"),
-  rho = round(c(PD1_GEP_cor$estimate,
-                TMB_GEP_cor$estimate,
-                TMB_PD1_cor$estimate), 3),
-  p.value = signif(c(PD1_GEP_cor$p.value,
-                     TMB_GEP_cor$p.value,
-                     TMB_PD1_cor$p.value), 3)
+  Comparison = c("PD1", "TMB", "GEP"),
+  rho = round(c(PD1_cor$estimate,
+                TMB_cor$estimate,
+                GEP_cor$estimate), 3),
+  p.value = signif(c(PD1_cor$p.value,
+                     TMB_cor$p.value,
+                     GEP_cor$p.value), 3)
 ))
-
-# Create correlation plots
-p_pd1_gep <- plot_association(clinical_filtered, "PD1", "GEP_scores", 
-                              "PDCD1 expression", "GEP score", PD1_GEP_cor)
-
-p_tmb_gep <- plot_association(clinical_filtered, "TMB", "GEP_scores", 
-                              "Tumor mutational burden", "GEP score", TMB_GEP_cor)
-
-p_tmb_pd1 <- plot_association(clinical_filtered, "TMB", "PD1", 
-                              "Tumor mutational burden", "PDCD1 expression", TMB_PD1_cor)
-
-(p_pd1_gep + p_tmb_gep + p_tmb_pd1) + plot_layout(nrow = 3)
 ```
 
 ### Discussion - RQ3
