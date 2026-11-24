@@ -726,13 +726,7 @@ Given the above results, we can see that the differentially expressed genes and 
 
 #### Limitations and discussion
 
-The results could however be confounded by the treatment response, as a response to PD-L1 treatment could itself lead to changes in gene expression. Additionally, while differential expression analysis can identify genes associated with treatment response, it does not establish causality. Further functional studies would be needed to determine whether these genes play a direct role in mediating the response to anti-PD-L1 therapy.
-
 As the data comes from bulk RNA expression, some of the samples could have low tumor purity, leading to results coming from low tumor expression due to high immune infiltration. This could be a confounding factor, as the immune response could be driving the observed differences in gene expression rather than the tumor cells themselves.
-
-##### OBS - comment from Ida
-
-Maybe we should add some logical transition to GEP and tumor purity to make it easy to follow the analysis?
 
 ## Research Question 2: Immune-Related Signatures
 
@@ -1225,3 +1219,7 @@ The findings have several implications for precision medicine:
 
 - Ayers, M., et al. (2017). IFN-γ-related mRNA profile predicts clinical response to PD-1 blockade. Journal of Clinical Investigation, 127(8), 2930-2940. https://doi.org/10.1172/JCI91190
 - Mariathasan, S., et al. (2018). TGFβ attenuates tumour response to PD-L1 blockade by contributing to exclusion of T cells. Nature, 554(7693), 544-548. https://doi.org/10.1038/nature25501
+
+
+# AI declaration
+Assistance from Large Language Models, specifically with code, formatting and language, was used to improve the clarity and presentation of this project. We take responsibility for the scientific content and interpretation of the results.
