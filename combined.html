@@ -4098,7 +4098,7 @@ Top 20 C8 pathways:</code></pre>
 <section id="research-question-2-immune-related-signatures" class="level2">
 <h2 class="anchored" data-anchor-id="research-question-2-immune-related-signatures">Research Question 2: Immune-Related Signatures</h2>
 <p><strong>Question:</strong> Are 18-gene T-cell-inflamed GEP (Ayers et al. 2017) associated with treatment response?</p>
-<p>Reference: Ayers et al. (2017). JCI. https://doi.org/10.1172/JCI91190</p>
+<p>Reference: Ayers et al. (2017). JCI. <a href="https://doi.org/10.1172/JCI91190" class="uri">https://doi.org/10.1172/JCI91190</a></p>
 <section id="methods-1" class="level3">
 <h3 class="anchored" data-anchor-id="methods-1">Methods</h3>
 <ul>
@@ -4183,7 +4183,15 @@ alternative hypothesis: true location shift is not equal to 0</code></pre>
 <section id="biological-interpretation---rq2" class="level3">
 <h3 class="anchored" data-anchor-id="biological-interpretation---rq2">Biological Interpretation - RQ2</h3>
 <p>The T-cell-inflamed GEP measures the expression of genes involved in T-cell infiltration and activation within the tumor microenvironment. A high GEP score indicates a “hot” tumor with active immune infiltration, which is more likely to respond to immune checkpoint inhibitors.</p>
-<p><strong>Key points:</strong> - The GEP genes include checkpoint molecules (PDCD1, LAG3, TIGIT), chemokines (CCL5, CXCL9), and MHC molecules (HLA-DQA1, HLA-DRB1, HLA-E) - These genes collectively represent the tumor’s immune landscape - However, a high GEP score does not guarantee treatment response because: - The immune cells may be exhausted or dysfunctional - Other suppressive mechanisms may be active (e.g., TGF, as shown in Mariathasan et al. 2018) - Tumor purity effects may confound the measurement</p>
+<p><strong>Key points:</strong></p>
+<ul>
+<li>The GEP genes include checkpoint molecules (PDCD1, LAG3, TIGIT), chemokines (CCL5, CXCL9), and MHC molecules (HLA-DQA1, HLA-DRB1, HLA-E) - These genes collectively represent the tumor’s immune landscape<br>
+</li>
+<li>However, a high GEP score does not guarantee treatment response because:</li>
+<li>The immune cells may be exhausted or dysfunctional</li>
+<li>Other suppressive mechanisms may be active (e.g., TGF, as shown in Mariathasan et al. 2018)</li>
+<li>Tumor purity effects may confound the measurement</li>
+</ul>
 </section>
 </section>
 <section id="research-question-3-biomarker-comparison" class="level2">
@@ -4615,7 +4623,7 @@ Unadjusted biomarker vs Response (Wilcoxon tests):</code></pre>
 </ul>
 <p><strong>Should we adjust for tumor purity?</strong></p>
 <p>This is a critical question in precision medicine:</p>
-<p><strong>Arguments FOR adjustment:</strong> - Removes technical confounding from cellular composition - Focuses on tumor-intrinsic biology - May improve predictive accuracy</p>
+<p><strong>Arguments FOR adjustment:</strong> - Removes technical confounding fromcellular composition - Focuses on tumor-intrinsic biology - May improve predictive accuracy</p>
 <p><strong>Arguments AGAINST adjustment:</strong> - Immune cell content IS the biology of interest for immunotherapy - Adjusting for purity removes clinically relevant information - The immune infiltration (measured by low purity) is part of the treatment mechanism</p>
 <p><strong>Conclusion:</strong> Tumor purity should not be automatically adjusted for. The question is: <em>What biological question are we asking?</em> - If we want to know “Do tumors with certain genetic characteristics respond?” → adjust for purity - If we want to know “Which patients will respond?” → do NOT adjust, as immune content is predictive</p>
 <p>The main lesson is: <strong>Understanding what generates the measured signal is essential before interpreting an association or using a biomarker for patient stratification.</strong></p>
@@ -4650,7 +4658,7 @@ Unadjusted biomarker vs Response (Wilcoxon tests):</code></pre>
 <p>The findings have several implications for precision medicine:</p>
 <ol type="1">
 <li><p><strong>Biomarker Development:</strong> The T-cell-inflamed GEP appears to be a promising biomarker, but needs validation in larger cohorts and potentially in combination with other markers.</p></li>
-<li><p><strong>Tumor Purity Consideration:</strong> Tumor purity should be measured and reported alongside any expression-based biomarkers to aid interpretation.</p></li>
+<li><p><strong>Tumor Purity Consideration:</strong> Tumor purity should be measured andreported alongside any expression-based biomarkers to aidinterpretation.</p></li>
 <li><p><strong>Combination Strategies:</strong> No single biomarker perfectly predicts response. Future work should explore combinations of TMB, PD-1, GEP, and other immune markers.</p></li>
 <li><p><strong>Mechanistic Insights:</strong> The strong negative correlation between GEP scores and tumor purity suggests that immune-excluded tumors (high purity, low immune infiltration) may be less responsive to immunotherapy, consistent with the findings of Mariathasan et al. (2018).</p></li>
 <li><p><strong>Clinical Translation:</strong> For clinical application, biomarkers should be:</p>
