@@ -906,23 +906,6 @@ kable(data.frame(
 ))
 ```
 
-```{r}
-Purity_Response_test <- wilcox.test(
-  purity ~ BOR,
-  data = clinical_filtered
-)
-
-print(Purity_Response_test)
-
-plot_response_boxplot(
-  clinical_filtered,
-  "purity",
-  "Estimated tumor purity",
-  Purity_Response_test
-) +
-  labs(title = "Tumor purity by treatment response")
-```
-
 ### Discussion - RQ3
 
 **Biological information captured by each biomarker:**
@@ -1012,6 +995,24 @@ clinical_filtered$ImmuneScore <- as.numeric(purity["ImmuneScore", rownames(clini
 clinical_filtered$StromalScore <- as.numeric(purity["StromalScore", rownames(clinical_filtered)])
 clinical_filtered$ESTIMATEScore <- as.numeric(purity["ESTIMATEScore", rownames(clinical_filtered)])
 ```
+
+```{r}
+Purity_Response_test <- wilcox.test(
+  purity ~ BOR,
+  data = clinical_filtered
+)
+
+print(Purity_Response_test)
+
+plot_response_boxplot(
+  clinical_filtered,
+  "purity",
+  "Estimated tumor purity",
+  Purity_Response_test
+) +
+  labs(title = "Tumor purity by treatment response")
+```
+
 
 ### Purity-Biomarker Associations
 
@@ -1107,6 +1108,7 @@ stopifnot(identical(clinical_adjusted$sample, rownames(clinical_filtered)))
 # Wilcoxon tests with adjusted biomarkers
 PD1_Response_adjusted_test <- wilcox.test(PD1 ~ BOR, data = clinical_adjusted)
 GEP_Response_adjusted_test <- wilcox.test(GEP_scores ~ BOR, data = clinical_adjusted)
+
 
 kable(data.frame(
   Marker = rep(c("PD1", "GEP"), 2),
