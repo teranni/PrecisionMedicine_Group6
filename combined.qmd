@@ -23,6 +23,9 @@ knitr::opts_chunk$set(
   fig.align = "center",
   cache = FALSE
 )
+kable <- function(data, caption = NULL, row.names = FALSE) {
+  knitr::kable(data, caption = caption, digits = 50, row.names = row.names, scientific = TRUE)
+}
 ```
 
 # Introduction
@@ -397,6 +400,7 @@ gsea <- function(category = "", subcategory = "") {
 ```{r}
 #| echo: false
 #| label: load-gsea
+#| output: false
 
 if (!file.exists("data/gsea_results.rds")) { 
 res_H <- gsea(category = "H")
@@ -467,14 +471,12 @@ if (interactive()) {
                 gseaParam = 0.5)
 }
 
-kable(topPathways_H, caption = 'Top Hallmark pathways')
-
 # Get top pathways tables
 top_pathways_H <- fgsea_H |>
   dplyr::arrange(padj) |>
   dplyr::slice(1:20)
 
-kable(table(top_pathways_H |> select(pathway, NES, padj)),
+kable(top_pathways_H |> select(pathway, NES, padj),
       caption = 'Top 20 Hallmark pathways')
 
 # Plot top enriched pathway
@@ -530,8 +532,6 @@ if (interactive()) {
                 gseaParam = 0.5)
 }
 
-kable(topPathways_C7, 
-      caption = 'Top C7 immune signature pathways')
 
 # Get top pathways tables
 top_pathways_C7 <- fgsea_C7 |>
@@ -625,15 +625,14 @@ if (interactive()) {
                 gseaParam = 0.5)
 }
 
-kable(topPathways_C8, caption = 'Top C8 cell-type signature pathways')
-
 # Note: Multiple pathways may have the same minimal p-value
 if (nrow(fgsea_C8[fgsea_C8$ES > 0 & fgsea_C8$padj == min(fgsea_C8$padj[fgsea_C8$ES > 0]), ]) > 0) {
-  cat('\nPathways with minimal p-value (upregulated):\n')
-  print(fgsea_C8 |>
+  kable(fgsea_C8 |>
     as.data.frame() |>
     filter(ES > 0) |>
-    filter(padj == min(padj)))
+    filter(padj == min(padj)) |>
+    select(pathway, NES, padj),
+    caption = 'Pathways with minimal p-value (upregulated)')
 }
 
 # Get top pathways tables
@@ -641,7 +640,8 @@ top_pathways_C8 <- fgsea_C8 |>
   dplyr::arrange(padj) |>
   dplyr::slice(1:20)
 
-kable(top_pathways_C8, caption = 'Top 20 C8 cell-type signature pathways')
+kable(top_pathways_C8 |> select(pathway, NES, padj), 
+      caption = 'Top 20 C8 cell-type signature pathways')
 
 # Plot top enriched pathways
 if (nrow(fgsea_C8[fgsea_C8$ES > 0, ]) > 0) {
@@ -978,9 +978,13 @@ suppressMessages({
   purity <- deconvolute_estimate(tpm_matrix)
 })
 
-cat("\nESTIMATE output:\n")
-print(dim(purity))
-print(rownames(purity))
+kable(data.frame(
+  Check = c("Dimensions", "Row names"),
+  Value = c(paste(dim(purity), collapse = " x "),
+            paste(rownames(purity), collapse = ", "))
+),
+caption = "ESTIMATE output summary"
+)
 
 # Extract tumor purity estimates
 tumor_purity <- as.numeric(purity[grep("purity", rownames(purity), ignore.case = TRUE, value = TRUE), ])
