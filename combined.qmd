@@ -711,7 +711,7 @@ association with different treatment responses?
 
 - Extract PD-1 expression, GEP scores, and TMB
 - Visualize distributions using boxplots
-- Perform statistical tests (Wilcoxon)
+- Perform statistical tests (Wilcoxon, Spearson)
 - Compare effect sizes and significance
 - Discuss biological information captured by each biomarker
 
