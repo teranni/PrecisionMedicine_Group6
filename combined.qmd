@@ -29,18 +29,13 @@ knitr::opts_chunk$set(
 
 This project investigates gene-expression biomarkers of immunotherapy response using the IMvigor210 dataset, which contains RNA-seq data from patients with urothelial cancer treated with anti-PD-L1 therapy. We address four research questions:
 
-**RQ1:** Which genes are differentially expressed between responders and
-non-responders?
+**RQ1:** Which genes are differentially expressed between responders and non-responders?
 
-**RQ2:** Are 18-gene T-cell-inflamed GEP associated with treatment
-response?
+**RQ2:** Are 18-gene T-cell-inflamed GEP associated with treatment response?
 
-**RQ3:** How do PD-1 expression, immune-related gene signatures, and TMB
-compare in their association with treatment response?
+**RQ3:** How do PD-1 expression, immune-related gene signatures, and TMB compare in their association with treatment response?
 
-**RQ4:** How might differences in tumor purity influence the expression
-of immune-related biomarkers and their observed associations with
-treatment response?
+**RQ4:** How might differences in tumor purity influence the expression of immune-related biomarkers and their observed associations with treatment response?
 
 ## Setup
 
@@ -611,7 +606,7 @@ It should however be noted, that the top 10 upregulated pathways all have the sa
 
 Differential expression analysis identifies genes associated with treatment response, but has several limitations:
 
-1.  **Correlation = Causation:** Differentially expressed genes may be passengers rather than drivers of response
+1.  **Correlation ≠ Causation:** Differentially expressed genes may be passengers rather than drivers of response
 2.  **Confounding factors:** Tumor purity, batch effects, and other technical/biological factors may influence results
 3.  **Multiple testing:** While we control FDR, some false positives may remain
 4.  **Bulk RNA-seq:** Cannot distinguish between tumor and immune cell expression
