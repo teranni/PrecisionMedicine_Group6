@@ -13,6 +13,9 @@ execute:
   echo: true
   warning: false
   message: false
+editor: 
+  markdown: 
+    wrap: 72
 ---
 
 ```{r, include=FALSE}
@@ -27,15 +30,23 @@ knitr::opts_chunk$set(
 
 # Introduction
 
-This report investigates gene-expression biomarkers of immunotherapy response using the IMvigor210 dataset, which contains RNA-seq data from patients with urothelial cancer treated with anti-PD-L1 therapy. We address four research questions:
+This report investigates gene-expression biomarkers of immunotherapy
+response using the IMvigor210 dataset, which contains RNA-seq data from
+patients with urothelial cancer treated with anti-PD-L1 therapy. We
+address four research questions:
 
-**RQ1:** Which genes are differentially expressed between responders and non-responders?
+**RQ1:** Which genes are differentially expressed between responders and
+non-responders?
 
-**RQ2:** Are 18-gene T-cell-inflamed GEP associated with treatment response?
+**RQ2:** Are 18-gene T-cell-inflamed GEP associated with treatment
+response?
 
-**RQ3:** How do PD-1 expression, immune-related gene signatures, and TMB compare in their association with treatment response?
+**RQ3:** How do PD-1 expression, immune-related gene signatures, and TMB
+compare in their association with treatment response?
 
-**RQ4:** How might differences in tumor purity influence the expression of immune-related biomarkers and their observed associations with treatment response?
+**RQ4:** How might differences in tumor purity influence the expression
+of immune-related biomarkers and their observed associations with
+treatment response?
 
 ## Setup
 
@@ -61,6 +72,7 @@ tpm <- IMVigor$tpm
 ```
 
 ### Setup and helper functions
+
 ```{r}
 # Define consistent color scheme for response groups
 response_colors <- c("NR" = "#4E79A7", "R" = "#E15759")
@@ -184,15 +196,18 @@ cat("TMB missing values:", sum(is.na(clinical_filtered$TMB)), "\n")
 
 ## Research Question 1: Differential Expression
 
-**Question:** Which genes are differentially expressed between patients with complete response and patients with progressive disease following anti-PD-L1 treatment?
+**Question:** Which genes are differentially expressed between patients
+with complete response and patients with progressive disease following
+anti-PD-L1 treatment?
 
 ### Methods
 
-- Prepare and explore the gene-expression data with appropriate filtering and normalization
-- Perform differential expression analysis using DESeq2
-- Identify significantly differentially expressed genes
-- Visualize results using volcano plots
-- Investigate biological functions using GSEA
+-   Prepare and explore the gene-expression data with appropriate
+    filtering and normalization
+-   Perform differential expression analysis using DESeq2
+-   Identify significantly differentially expressed genes
+-   Visualize results using volcano plots
+-   Investigate biological functions using GSEA
 
 ### Differential Expression Analysis
 
@@ -246,12 +261,17 @@ volcano_plot
 
 ### Biological Interpretation
 
-Using the top 30 most significantly differentially expressed genes, we can search for their biological functions and relevance to immunotherapy response.
+Using the top 30 most significantly differentially expressed genes, we
+can search for their biological functions and relevance to immunotherapy
+response.
 
-For this, a search for the NCBI Gene database is compiled below. While doing this, it was found that the gene LOC81691 is no longer the preferred symbol for this gene, and has been updated to REXO5. Therefore, we include this in the search query.
+For this, a search for the NCBI Gene database is compiled below. While
+doing this, it was found that the gene LOC81691 is no longer the
+preferred symbol for this gene, and has been updated to REXO5.
+Therefore, we include this in the search query.
 
-The resulting table from NCBI was then exported and imported into R for further analysis.
-
+The resulting table from NCBI was then exported and imported into R for
+further analysis.
 
 ```{r}
 # Get top 30 most significant genes (using all genes with padj, not just significant ones)
@@ -273,8 +293,11 @@ if (file.exists("data/gene_result.txt")) {
 }
 ```
 
-The genes alone are not sufficient for a complete biological interpretation. Additional context and functional annotations are required to understand their role in the biological processes under investigation. Therefore we look into the pathways using Gene Set Enrichment Analysis (GSEA).
-
+The genes alone are not sufficient for a complete biological
+interpretation. Additional context and functional annotations are
+required to understand their role in the biological processes under
+investigation. Therefore we look into the pathways using Gene Set
+Enrichment Analysis (GSEA).
 
 ### Gene Set Enrichment Analysis (GSEA)
 
@@ -583,28 +606,38 @@ if (nrow(fgsea_C8[fgsea_C8$ES < 0, ]) > 0) {
 
 ### Discussion - RQ1 Limitations
 
-Differential expression analysis identifies genes associated with treatment response, but has several limitations:
+Differential expression analysis identifies genes associated with
+treatment response, but has several limitations:
 
-1. **Correlation = Causation:** Differentially expressed genes may be passengers rather than drivers of response
-2. **Confounding factors:** Tumor purity, batch effects, and other technical/biological factors may influence results
-3. **Multiple testing:** While we control FDR, some false positives may remain
-4. **Bulk RNA-seq:** Cannot distinguish between tumor and immune cell expression
-5. **Heterogeneity:** Patient-specific factors may contribute to variability
+1.  **Correlation = Causation:** Differentially expressed genes may be
+    passengers rather than drivers of response
+2.  **Confounding factors:** Tumor purity, batch effects, and other
+    technical/biological factors may influence results
+3.  **Multiple testing:** While we control FDR, some false positives may
+    remain
+4.  **Bulk RNA-seq:** Cannot distinguish between tumor and immune cell
+    expression
+5.  **Heterogeneity:** Patient-specific factors may contribute to
+    variability
 
-The GSEA results provide biological context, showing that immune-related pathways are enriched among differentially expressed genes, which aligns with the mechanism of action of PD-L1 inhibitors.
+The GSEA results provide biological context, showing that immune-related
+pathways are enriched among differentially expressed genes, which aligns
+with the mechanism of action of PD-L1 inhibitors.
 
 ## Research Question 2: Immune-Related Signatures
 
-**Question:** Are 18-gene T-cell-inflamed GEP (Ayers et al. 2017) associated with treatment response?
+**Question:** Are 18-gene T-cell-inflamed GEP (Ayers et al. 2017)
+associated with treatment response?
 
-Reference: Ayers et al. (2017). JCI. https://doi.org/10.1172/JCI91190
+Reference: Ayers et al. (2017). JCI. <https://doi.org/10.1172/JCI91190>
 
 ### Methods
 
-- Identify the 18 genes included in the published T-cell-inflamed GEP
-- Calculate a GEP score for each patient (mean of standardized expression)
-- Investigate association between GEP scores and treatment response
-- Interpret biological significance
+-   Identify the 18 genes included in the published T-cell-inflamed GEP
+-   Calculate a GEP score for each patient (mean of standardized
+    expression)
+-   Investigate association between GEP scores and treatment response
+-   Interpret biological significance
 
 ### Calculate T-cell-inflamed GEP Scores
 
@@ -654,27 +687,33 @@ plot_response_boxplot(clinical_filtered, "GEP_scores", "T cell-inflamed GEP scor
 
 ### Biological Interpretation - RQ2
 
-The T-cell-inflamed GEP measures the expression of genes involved in T-cell infiltration and activation within the tumor microenvironment. A high GEP score indicates a "hot" tumor with active immune infiltration, which is more likely to respond to immune checkpoint inhibitors.
+The T-cell-inflamed GEP measures the expression of genes involved in
+T-cell infiltration and activation within the tumor microenvironment. A
+high GEP score indicates a "hot" tumor with active immune infiltration,
+which is more likely to respond to immune checkpoint inhibitors.
 
-**Key points:**
-- The GEP genes include checkpoint molecules (PDCD1, LAG3, TIGIT), chemokines (CCL5, CXCL9), and MHC molecules (HLA-DQA1, HLA-DRB1, HLA-E)
-- These genes collectively represent the tumor's immune landscape
-- However, a high GEP score does not guarantee treatment response because:
-  - The immune cells may be exhausted or dysfunctional
-  - Other suppressive mechanisms may be active (e.g., TGF, as shown in Mariathasan et al. 2018)
-  - Tumor purity effects may confound the measurement
+**Key points:** - The GEP genes include checkpoint molecules (PDCD1,
+LAG3, TIGIT), chemokines (CCL5, CXCL9), and MHC molecules (HLA-DQA1,
+HLA-DRB1, HLA-E) - These genes collectively represent the tumor's immune
+landscape - However, a high GEP score does not guarantee treatment
+response because: - The immune cells may be exhausted or dysfunctional -
+Other suppressive mechanisms may be active (e.g., TGF, as shown in
+Mariathasan et al. 2018) - Tumor purity effects may confound the
+measurement
 
 ## Research Question 3: Biomarker Comparison
 
-**Question:** How do PD-1 (PDCD1) expression, immune-related gene signatures, and tumor mutational burden (TMB) compare in their association with different treatment responses?
+**Question:** How do PD-1 (PDCD1) expression, immune-related gene
+signatures, and tumor mutational burden (TMB) compare in their
+association with different treatment responses?
 
 ### Methods
 
-- Extract PD-1 expression, GEP scores, and TMB
-- Visualize distributions using boxplots
-- Perform statistical tests (Wilcoxon)
-- Compare effect sizes and significance
-- Discuss biological information captured by each biomarker
+-   Extract PD-1 expression, GEP scores, and TMB
+-   Visualize distributions using boxplots
+-   Perform statistical tests (Wilcoxon)
+-   Compare effect sizes and significance
+-   Discuss biological information captured by each biomarker
 
 ### Extract Biomarkers
 
@@ -758,54 +797,69 @@ p_tmb_pd1 <- plot_association(clinical_filtered, "TMB", "PD1",
 
 **Biological information captured by each biomarker:**
 
-1. **TMB (Tumor Mutational Burden):**
-   - Measures the number of mutations in the tumor
-   - Higher TMB may lead to more neoantigens that can be recognized by T-cells
-   - Associated with better response to immunotherapy in some cancer types
-   - However, not all mutations create immunogenic neoantigens
-
-2. **PD-1 (PDCD1) expression:**
-   - Marker of T-cell activation and exhaustion
-   - High PD-1 expression indicates T-cells are present but may be suppressed
-   - PD-1 inhibitors work by blocking this suppression
-   - However, PD-1 can also be expressed on other immune cells
-
-3. **T-cell-inflamed GEP:**
-   - Measures a broader immune activation signature
-   - Includes multiple checkpoint molecules, chemokines, and MHC genes
-   - More robust than single-gene markers
-   - Better captures the overall immune landscape
+1.  **TMB (Tumor Mutational Burden):**
+    -   Measures the number of mutations in the tumor
+    -   Higher TMB may lead to more neoantigens that can be recognized
+        by T-cells
+    -   Associated with better response to immunotherapy in some cancer
+        types
+    -   However, not all mutations create immunogenic neoantigens
+2.  **PD-1 (PDCD1) expression:**
+    -   Marker of T-cell activation and exhaustion
+    -   High PD-1 expression indicates T-cells are present but may be
+        suppressed
+    -   PD-1 inhibitors work by blocking this suppression
+    -   However, PD-1 can also be expressed on other immune cells
+3.  **T-cell-inflamed GEP:**
+    -   Measures a broader immune activation signature
+    -   Includes multiple checkpoint molecules, chemokines, and MHC
+        genes
+    -   More robust than single-gene markers
+    -   Better captures the overall immune landscape
 
 **Relative strengths and limitations:**
 
-- **TMB** is easy to measure and clinically validated, but may not reflect immune activity
-- **PD-1** is directly related to the mechanism of action, but is a single marker
-- **GEP** provides a more comprehensive view of immune activity, but is more complex
+-   **TMB** is easy to measure and clinically validated, but may not
+    reflect immune activity
+-   **PD-1** is directly related to the mechanism of action, but is a
+    single marker
+-   **GEP** provides a more comprehensive view of immune activity, but
+    is more complex
 
-The correlations between biomarkers suggest they capture related but distinct biological information. The strongest correlation is between PD-1 and GEP (as expected, since PD-1 is one of the GEP genes), while TMB shows weaker correlations with the other biomarkers.
+The correlations between biomarkers suggest they capture related but
+distinct biological information. The strongest correlation is between
+PD-1 and GEP (as expected, since PD-1 is one of the GEP genes), while
+TMB shows weaker correlations with the other biomarkers.
 
 ## Research Question 4: Tumor Purity Analysis
 
-**Question:** How might differences in tumor purity influence the expression of immune-related biomarkers and their observed associations with treatment response?
+**Question:** How might differences in tumor purity influence the
+expression of immune-related biomarkers and their observed associations
+with treatment response?
 
 ### Methods
 
-- Estimate tumor purity using ESTIMATE algorithm via `immunedeconv` package
-- Analyze relationship between tumor purity and each biomarker (PD-1, GEP, TMB)
-- Adjust expression for tumor purity using `removeBatchEffect()` from `limma`
-- Re-evaluate biomarker-response associations after purity adjustment
-- Discuss whether purity adjustment improves interpretation
+-   Estimate tumor purity using ESTIMATE algorithm via `immunedeconv`
+    package
+-   Analyze relationship between tumor purity and each biomarker (PD-1,
+    GEP, TMB)
+-   Adjust expression for tumor purity using `removeBatchEffect()` from
+    `limma`
+-   Re-evaluate biomarker-response associations after purity adjustment
+-   Discuss whether purity adjustment improves interpretation
 
 ### Background
 
-Bulk tumor RNA-seq contains RNA from:
-- Malignant tumor cells
-- Immune cells (lymphocytes, macrophages, etc.)
-- Stromal cells (fibroblasts, endothelial cells, etc.)
+Bulk tumor RNA-seq contains RNA from: - Malignant tumor cells - Immune
+cells (lymphocytes, macrophages, etc.) - Stromal cells (fibroblasts,
+endothelial cells, etc.)
 
-**Tumor purity** refers to the proportion of tumor cells in the sample. Variation in tumor purity can influence biomarker measurements:
-- **Immune biomarkers** (PD-1, GEP) are expected to be **negatively** correlated with tumor purity (higher in samples with more immune cells)
-- **TMB** may be **positively** correlated with tumor purity (more tumor cells = more mutations detected)
+**Tumor purity** refers to the proportion of tumor cells in the sample.
+Variation in tumor purity can influence biomarker measurements: -
+**Immune biomarkers** (PD-1, GEP) are expected to be **negatively**
+correlated with tumor purity (higher in samples with more immune
+cells) - **TMB** may be **positively** correlated with tumor purity
+(more tumor cells = more mutations detected)
 
 ### Estimate Tumor Purity
 
@@ -963,106 +1017,161 @@ p_gep_adj <- plot_response_boxplot(
 
 **How tumor purity influences immune-related biomarkers:**
 
-1. **PD-1 expression:** Strong negative correlation with tumor purity (rho ≈ -0.48, p < 0.0001)
-   - PD-1 is primarily expressed on immune cells (T-cells)
-   - Higher purity = fewer immune cells = lower PD-1 expression
-   - This confirms that PD-1 expression in bulk RNA-seq is largely a measure of immune cell content
+1.  **PD-1 expression:** Strong negative correlation with tumor purity
+    (rho ≈ -0.48, p \< 0.0001)
+    -   PD-1 is primarily expressed on immune cells (T-cells)
+    -   Higher purity = fewer immune cells = lower PD-1 expression
+    -   This confirms that PD-1 expression in bulk RNA-seq is largely a
+        measure of immune cell content
+2.  **T-cell-inflamed GEP:** Very strong negative correlation with tumor
+    purity (rho ≈ -0.68, p \< 0.0001)
+    -   The GEP includes many immune cell-specific genes
+    -   Higher purity = fewer immune cells = lower GEP score
+    -   This is the strongest correlation among the biomarkers
+3.  **TMB:** Weak positive correlation with tumor purity (rho ≈ 0.22, p
+    ≈ 0.09)
+    -   TMB is measured from tumor cells
+    -   Higher purity = more tumor cells = more mutations detected
+    -   The correlation is weaker, possibly due to technical factors in
+        mutation calling
 
-2. **T-cell-inflamed GEP:** Very strong negative correlation with tumor purity (rho ≈ -0.68, p < 0.0001)
-   - The GEP includes many immune cell-specific genes
-   - Higher purity = fewer immune cells = lower GEP score
-   - This is the strongest correlation among the biomarkers
+**Do differences in tumor purity explain the associations observed in
+RQ2 and RQ3?**
 
-3. **TMB:** Weak positive correlation with tumor purity (rho ≈ 0.22, p ≈ 0.09)
-   - TMB is measured from tumor cells
-   - Higher purity = more tumor cells = more mutations detected
-   - The correlation is weaker, possibly due to technical factors in mutation calling
+The strong correlations between tumor purity and the immune biomarkers
+(PD-1 and GEP) suggest that tumor purity is a significant confounder.
+When we adjust for tumor purity:
 
-**Do differences in tumor purity explain the associations observed in RQ2 and RQ3?**
-
-The strong correlations between tumor purity and the immune biomarkers (PD-1 and GEP) suggest that tumor purity is a significant confounder. When we adjust for tumor purity:
-
-- The associations between PD-1/GEP and response **decrease** (p-values increase)
-- This suggests that some of the observed signal was due to differences in tumor purity between responders and non-responders
-- However, the associations do not disappear completely, indicating that there is still biology beyond tumor purity
+-   The associations between PD-1/GEP and response **decrease**
+    (p-values increase)
+-   This suggests that some of the observed signal was due to
+    differences in tumor purity between responders and non-responders
+-   However, the associations do not disappear completely, indicating
+    that there is still biology beyond tumor purity
 
 **Should we adjust for tumor purity?**
 
 This is a critical question in precision medicine:
 
-**Arguments FOR adjustment:**
-- Removes technical confounding from cellular composition
-- Focuses on tumor-intrinsic biology
-- May improve predictive accuracy
+**Arguments FOR adjustment:** - Removes technical confounding from
+cellular composition - Focuses on tumor-intrinsic biology - May improve
+predictive accuracy
 
-**Arguments AGAINST adjustment:**
-- Immune cell content IS the biology of interest for immunotherapy
-- Adjusting for purity removes clinically relevant information
-- The immune infiltration (measured by low purity) is part of the treatment mechanism
+**Arguments AGAINST adjustment:** - Immune cell content IS the biology
+of interest for immunotherapy - Adjusting for purity removes clinically
+relevant information - The immune infiltration (measured by low purity)
+is part of the treatment mechanism
 
-**Conclusion:** 
-Tumor purity should not be automatically adjusted for. The question is: *What biological question are we asking?* 
-- If we want to know "Do tumors with certain genetic characteristics respond?" → adjust for purity
-- If we want to know "Which patients will respond?" → do NOT adjust, as immune content is predictive
+**Conclusion:** Tumor purity should not be automatically adjusted for.
+The question is: *What biological question are we asking?* - If we want
+to know "Do tumors with certain genetic characteristics respond?" →
+adjust for purity - If we want to know "Which patients will respond?" →
+do NOT adjust, as immune content is predictive
 
-The main lesson is: **Understanding what generates the measured signal is essential before interpreting an association or using a biomarker for patient stratification.**
+The main lesson is: **Understanding what generates the measured signal
+is essential before interpreting an association or using a biomarker for
+patient stratification.**
 
 # Overall Discussion and Conclusion
 
 ## Biological Interpretation
 
-Our analysis reveals several key insights about biomarkers of immunotherapy response:
+Our analysis reveals several key insights about biomarkers of
+immunotherapy response:
 
-1. **Differential Expression (RQ1):** We identified genes differentially expressed between responders and non-responders, with enrichment in immune-related pathways. This aligns with the mechanism of PD-L1 inhibitors, which work by reactivating T-cells.
+1.  **Differential Expression (RQ1):** We identified genes
+    differentially expressed between responders and non-responders, with
+    enrichment in immune-related pathways. This aligns with the
+    mechanism of PD-L1 inhibitors, which work by reactivating T-cells.
 
-2. **GEP Association (RQ2):** The T-cell-inflamed GEP shows a trend towards higher scores in responders, though not statistically significant in this dataset. This signature captures the immune activation state of the tumor microenvironment.
+2.  **GEP Association (RQ2):** The T-cell-inflamed GEP shows a trend
+    towards higher scores in responders, though not statistically
+    significant in this dataset. This signature captures the immune
+    activation state of the tumor microenvironment.
 
-3. **Biomarker Comparison (RQ3):** All three biomarkers (PD-1, GEP, TMB) show associations with response, with GEP appearing to be the most informative. The correlations between biomarkers suggest they capture complementary aspects of tumor biology.
+3.  **Biomarker Comparison (RQ3):** All three biomarkers (PD-1, GEP,
+    TMB) show associations with response, with GEP appearing to be the
+    most informative. The correlations between biomarkers suggest they
+    capture complementary aspects of tumor biology.
 
-4. **Tumor Purity Effects (RQ4):** Tumor purity has a substantial impact on immune biomarkers, with PD-1 and GEP scores being strongly negatively correlated with purity. This highlights the importance of considering cellular composition when interpreting bulk RNA-seq data.
+4.  **Tumor Purity Effects (RQ4):** Tumor purity has a substantial
+    impact on immune biomarkers, with PD-1 and GEP scores being strongly
+    negatively correlated with purity. This highlights the importance of
+    considering cellular composition when interpreting bulk RNA-seq
+    data.
 
 ## Limitations
 
-1. **Sample Size:** The dataset has 192 samples with 167 non-responders and 25 responders. The small number of responders limits statistical power.
+1.  **Sample Size:** The dataset has 192 samples with 167 non-responders
+    and 25 responders. The small number of responders limits statistical
+    power.
 
-2. **Bulk RNA-seq:** Cannot distinguish cell-type specific expression. Single-cell RNA-seq would provide better resolution.
+2.  **Bulk RNA-seq:** Cannot distinguish cell-type specific expression.
+    Single-cell RNA-seq would provide better resolution.
 
-3. **Missing Data:** Some TMB values are missing (42/192), which may introduce bias.
+3.  **Missing Data:** Some TMB values are missing (42/192), which may
+    introduce bias.
 
-4. **No Survival Data:** The available data does not include PFS or OS, limiting our ability to assess prognostic value.
+4.  **No Survival Data:** The available data does not include PFS or OS,
+    limiting our ability to assess prognostic value.
 
-5. **Technical Variation:** Batch effects and other technical factors may influence results.
+5.  **Technical Variation:** Batch effects and other technical factors
+    may influence results.
 
-6. **Multiple Testing:** While we control FDR for differential expression, we perform many statistical tests throughout the analysis.
+6.  **Multiple Testing:** While we control FDR for differential
+    expression, we perform many statistical tests throughout the
+    analysis.
 
 ## Relevance to Precision Medicine
 
 The findings have several implications for precision medicine:
 
-1. **Biomarker Development:** The T-cell-inflamed GEP appears to be a promising biomarker, but needs validation in larger cohorts and potentially in combination with other markers.
+1.  **Biomarker Development:** The T-cell-inflamed GEP appears to be a
+    promising biomarker, but needs validation in larger cohorts and
+    potentially in combination with other markers.
 
-2. **Tumor Purity Consideration:** Tumor purity should be measured and reported alongside any expression-based biomarkers to aid interpretation.
+2.  **Tumor Purity Consideration:** Tumor purity should be measured and
+    reported alongside any expression-based biomarkers to aid
+    interpretation.
 
-3. **Combination Strategies:** No single biomarker perfectly predicts response. Future work should explore combinations of TMB, PD-1, GEP, and other immune markers.
+3.  **Combination Strategies:** No single biomarker perfectly predicts
+    response. Future work should explore combinations of TMB, PD-1, GEP,
+    and other immune markers.
 
-4. **Mechanistic Insights:** The strong negative correlation between GEP scores and tumor purity suggests that immune-excluded tumors (high purity, low immune infiltration) may be less responsive to immunotherapy, consistent with the findings of Mariathasan et al. (2018).
+4.  **Mechanistic Insights:** The strong negative correlation between
+    GEP scores and tumor purity suggests that immune-excluded tumors
+    (high purity, low immune infiltration) may be less responsive to
+    immunotherapy, consistent with the findings of Mariathasan et al.
+    (2018).
 
-5. **Clinical Translation:** For clinical application, biomarkers should be:
-   - Robust across platforms and batches
-   - Biologically interpretable
-   - Clinically actionable
-   - Validated in prospective studies
+5.  **Clinical Translation:** For clinical application, biomarkers
+    should be:
+
+    -   Robust across platforms and batches
+    -   Biologically interpretable
+    -   Clinically actionable
+    -   Validated in prospective studies
 
 ## Future Directions
 
-1. **External Validation:** Validate findings in independent cohorts
-2. **Single-cell Analysis:** Use single-cell RNA-seq to deconvolute cell-type specific expression
-3. **Integrative Models:** Develop multivariate models combining multiple biomarkers
-4. **Functional Validation:** Experimentally validate the role of top candidate genes
-5. **Longitudinal Analysis:** Analyze pre- and post-treatment samples to understand dynamics
-6. **Combination Therapies:** Explore whether non-responders might benefit from combination therapies targeting additional pathways (e.g., TGFβ inhibitors for immune-excluded tumors)
+1.  **External Validation:** Validate findings in independent cohorts
+2.  **Single-cell Analysis:** Use single-cell RNA-seq to deconvolute
+    cell-type specific expression
+3.  **Integrative Models:** Develop multivariate models combining
+    multiple biomarkers
+4.  **Functional Validation:** Experimentally validate the role of top
+    candidate genes
+5.  **Longitudinal Analysis:** Analyze pre- and post-treatment samples
+    to understand dynamics
+6.  **Combination Therapies:** Explore whether non-responders might
+    benefit from combination therapies targeting additional pathways
+    (e.g., TGFβ inhibitors for immune-excluded tumors)
 
 # References
 
-- Ayers, M., et al. (2017). IFN-γ-related mRNA profile predicts clinical response to PD-1 blockade. Journal of Clinical Investigation, 127(8), 2930-2940. https://doi.org/10.1172/JCI91190
-- Mariathasan, S., et al. (2018). TGFβ attenuates tumour response to PD-L1 blockade by contributing to exclusion of T cells. Nature, 554(7693), 544-548. https://doi.org/10.1038/nature25501
+-   Ayers, M., et al. (2017). IFN-γ-related mRNA profile predicts
+    clinical response to PD-1 blockade. Journal of Clinical
+    Investigation, 127(8), 2930-2940. https://doi.org/10.1172/JCI91190
+-   Mariathasan, S., et al. (2018). TGFβ attenuates tumour response to
+    PD-L1 blockade by contributing to exclusion of T cells. Nature,
+    554(7693), 544-548. https://doi.org/10.1038/nature25501
