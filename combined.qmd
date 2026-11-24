@@ -278,6 +278,8 @@ The genes alone are not sufficient for a complete biological interpretation. Add
 
 ### Gene Set Enrichment Analysis (GSEA)
 
+We have chosen to focus on H, C7 and C8 because they combine broad pathway-level information with immune- and cell-type-specific insights. Hallmark gene sets provide an overview of the major biological processes represented in the data. C7 can identify differences in immune responses between conditions, which may help explain differences in treatment response. C8 can reveal differences in the abundance or activity of specific cell types, helping identify which cell populations may be driving the observed variation in gene expression.
+
 ```{r}
 #| label: gsea
 
@@ -392,6 +394,10 @@ if (nrow(fgsea_H[fgsea_H$ES > 0, ]) > 0) {
 }
 ```
 
+These pathways indicate, that patients that respond to anti-PD-L1 treatment have a higher expression of genes involved in immune response (inteferon gamma and alpha), and cell proliferation (E2F targets and G2M). 
+
+Similarly, pathways that are downregulated, would normally control cell division. Interestingly, two of the downregulated pathways are involved with blood vessels and clotting (angiogenesis and coagulation). 
+
 ```{r}
 # C7 pathways
 # Get top pathways for C7
@@ -481,6 +487,10 @@ if (nrow(fgsea_C7[fgsea_C7$ES < 0, ]) > 0) {
   print(p_C7_down)
 }
 ```
+
+The upregulated pathways here are showing signs of active CD8+ T cell responses, as weel as other T-cells and long B-cell response. 
+
+The downregulated genes are involved in the initial short-term innate immune response, such as early macrophage activation and 1-3 hour response, indicating that the patients that respond to anti-PD-L1 treatment have a more active and long-term immune response.
 
 ```{r}
 # C8 pathways
@@ -581,6 +591,10 @@ if (nrow(fgsea_C8[fgsea_C8$ES < 0, ]) > 0) {
 }
 ```
 
+This again paints a picture of increased presence of immune-cells and lower presence of structural cells like endothelial cells ligning blood vessels. 
+It should however be noted, that the top 10 upregulated pathways all have the same p-value (the minimal possible p-value for this test), which means the order is random, and that all pathways with this p-value should be evaluated
+
+
 ### Discussion - RQ1 Limitations
 
 Differential expression analysis identifies genes associated with treatment response, but has several limitations:
@@ -592,6 +606,21 @@ Differential expression analysis identifies genes associated with treatment resp
 5. **Heterogeneity:** Patient-specific factors may contribute to variability
 
 The GSEA results provide biological context, showing that immune-related pathways are enriched among differentially expressed genes, which aligns with the mechanism of action of PD-L1 inhibitors.
+
+#### Biological interpretation
+
+Given the above results, we can see that the differentially expressed genes and enriched pathways suggest that patients who respond to anti-PD-L1 treatment have a more active and long-term immune response. The upregulated pathways indicate increased activity of CD8+ T cells, other T cells, and B cells, while the downregulated pathways suggest a reduced short-term innate immune response. This could imply that a robust adaptive immune response is associated with better treatment outcomes.
+
+#### Limitations and discussion
+The results could however be confounded by the treatment response, as a response to PD-L1 treatment could itself lead to changes in gene expression. Additionally, while differential expression analysis can identify genes associated with treatment response, it does not establish causality. Further functional studies would be needed to determine whether these genes play a direct role in mediating the response to anti-PD-L1 therapy.
+
+
+As the data comes from bulk RNA expression, some of the samples could have low tumor purity, leading to results coming from low tumor expression due to high immune infiltration. This could be a confounding factor, as the immune response could be driving the observed differences in gene expression rather than the tumor cells themselves.
+
+
+##### OBS - comment from Ida
+Maybe we should add some logical transition to GEP and tumor purity to make it easy to follow the analysis?
+
 
 ## Research Question 2: Immune-Related Signatures
 
