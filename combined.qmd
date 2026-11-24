@@ -1207,4 +1207,4 @@ The findings have several implications for precision medicine:
 
 
 # AI declaration
-Assistance from Large Language Models, specifically with code, formatting and language, was used to improve the clarity and presentation of this project. We take responsibility for the scientific content and interpretation of the results.
+Assistance from Large Language Models, specifically with code, formatting and language, was used to improve the clarity and visual presentation of this project. We take responsibility for the scientific content and interpretation of the results.
