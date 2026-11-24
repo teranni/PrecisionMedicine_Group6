@@ -152,7 +152,6 @@ plot_association <- function(data, x, y, x_label, y_label, cor_test = NULL) {
   return(p)
 }
 
-
 # Helper function for volcano plots
 plot_volcano <- function(data, log2fc_col = "log2FoldChange", padj_col = "padj", 
                          gene_col = "gene", significant_col = "significant") {
@@ -206,7 +205,7 @@ stopifnot(identical(colnames(counts_matrix), rownames(clinical_filtered)))
 stopifnot(identical(colnames(tpm_matrix), rownames(clinical_filtered)))
 stopifnot(all(colnames(counts_matrix) == rownames(clinical_filtered)))
 
-# Encode BOR as 1/0 then as factor (R=1, NR=0) for DESeq2
+# Encode BORas factor for DESeq2
 clinical_filtered$BOR <- as.factor(clinical_filtered$BOR)
 
 kable(data.frame(
@@ -303,7 +302,7 @@ res_df <- as.data.frame(res) |>
   rownames_to_column("gene") |>
   mutate(
     significant = padj < 0.05,
-    Response = "R"  # Responder is the comparison group
+    Response = "R" 
   ) |>
   arrange(padj)
 
@@ -347,16 +346,14 @@ The resulting table from NCBI was then exported and imported into R for further 
 
 ```{r}
 #| label: top-genes
-# Note: LOC81691 has modern name REXO5
+#| 
 cat('\nTop 30 significant genes:\n')
 print(top_genes)
 
-# Load gene annotations if available
-if (file.exists("data/gene_result.txt")) {
-  top_genes_annot <- read.csv("data/gene_result.txt", sep = "\t")
-  kable(top_genes_annot |> select(Symbol, description) |> head(30),
-        caption = 'Gene annotations for top genes')
-}
+# Load gene annotations for top genes from search
+top_genes_annot <- read.csv("data/gene_result.txt", sep = "\t")
+kable(top_genes_annot |> select(Symbol, description) |> head(30),
+      caption = 'Gene annotations for top genes')
 ```
 
 The genes alone are not sufficient for a complete biological interpretation. Additional context and functional annotations are required to understand their role in the biological processes under investigation. Therefore we look into the pathways using Gene Set Enrichment Analysis (GSEA).
@@ -370,7 +367,7 @@ The genes alone are not sufficient for a complete biological interpretation. Add
 ranked_genes <- res_df$stat
 names(ranked_genes) <- res_df$gene
 
-# Function to run GSEA - returns both results and split genes for visualization
+# Function to run GSEA
 gsea <- function(category = "", subcategory = "") {
   if (subcategory != "") {
     gene_sets <- msigdbr(species = "Homo sapiens", 
@@ -457,7 +454,6 @@ number_of_top_pathways_up <- 10
 number_of_top_pathways_down <- 10
 
 # Hallmark pathways
-# Get top pathways for Hallmark
 topPathwaysUp_H <- fgsea_H[ES > 0][head(order(pval), n = number_of_top_pathways_up), pathway]
 topPathwaysDown_H <- fgsea_H[ES < 0][head(order(pval), n = number_of_top_pathways_down), pathway]
 topPathways_H <- c(topPathwaysUp_H, rev(topPathwaysDown_H))
@@ -518,7 +514,6 @@ Similarly, pathways that are downregulated, would normally control cell division
 ```{r}
 #| label: c7-gsea
 # C7 pathways
-# Get top pathways for C7
 topPathwaysUp_C7 <- fgsea_C7[ES > 0][head(order(pval), n = number_of_top_pathways_up), pathway]
 topPathwaysDown_C7 <- fgsea_C7[ES < 0][head(order(pval), n = number_of_top_pathways_down), pathway]
 topPathways_C7 <- c(topPathwaysUp_C7, rev(topPathwaysDown_C7))
@@ -530,7 +525,6 @@ if (interactive()) {
                 fgseaRes = fgsea_C7, 
                 gseaParam = 0.5)
 }
-
 
 # Get top pathways tables
 top_pathways_C7 <- fgsea_C7 |>
@@ -611,7 +605,6 @@ The downregulated genes are involved in the initial short-term innate immune res
 ```{r}
 #| label: c8-gsea
 # C8 pathways
-# Get top pathways for C8
 topPathwaysUp_C8 <- fgsea_C8[ES > 0][head(order(pval), n = number_of_top_pathways_up), pathway]
 topPathwaysDown_C8 <- fgsea_C8[ES < 0][head(order(pval), n = number_of_top_pathways_down), pathway]
 topPathways_C8 <- c(topPathwaysUp_C8, rev(topPathwaysDown_C8))
@@ -624,7 +617,7 @@ if (interactive()) {
                 gseaParam = 0.5)
 }
 
-# Note: Multiple pathways may have the same minimal p-value
+# Multiple pathways have the same very very low p-value, so we will display the pathways with the minimal p-value for both upregulated and downregulated pathways.
 if (nrow(fgsea_C8[fgsea_C8$ES > 0 & fgsea_C8$padj == min(fgsea_C8$padj[fgsea_C8$ES > 0]), ]) > 0) {
   kable(fgsea_C8 |>
     as.data.frame() |>
@@ -767,8 +760,6 @@ kable(data.frame(
             if (length(GEP_genes_missing) > 0) paste(GEP_genes_missing, collapse = ", ") else "none")
 ))
 
-# Calculate GEP scores using TPM for better comparability
-
 # Standardize each gene across samples and calculate mean
 clinical_filtered$GEP_scores <- colMeans(t(scale(t(tpm_matrix[GEP_genes_present, , drop = FALSE]))), na.rm = TRUE)
 
@@ -830,10 +821,6 @@ clinical_filtered$PD1 <- as.numeric(tpm_matrix["PDCD1", ])
 
 # Check for missing TMB values and handle them
 clinical_filtered$TMB <- ifelse(is.na(clinical_filtered$TMB), median(clinical_filtered$TMB, na.rm = TRUE), clinical_filtered$TMB)
-
-# Verify all samples are present
-stopifnot(nrow(clinical_filtered) == ncol(tpm_matrix))
-stopifnot(nrow(clinical_filtered) == ncol(counts_matrix))
 
 kable(summary(clinical_filtered |> select(TMB, PD1, GEP_scores)),
       caption = "Summary of Biomarkers")
@@ -941,7 +928,6 @@ Bulk tumor RNA-seq contains RNA from:
 #| label: estimate-purity
 
 # Estimate tumor purity using ESTIMATE
-# Note: This may take a moment and produce some messages
 suppressMessages({
   purity <- deconvolute_estimate(tpm_matrix)
 })
@@ -1053,7 +1039,6 @@ p_gep_purity <- plot_association(
 #| label: purity-adjustment
 
 # Adjust expression matrix for tumor purity
-# This removes the linear component associated with purity from each gene
 suppressMessages({
   tpm_adjusted <- removeBatchEffect(
     tpm_matrix,
