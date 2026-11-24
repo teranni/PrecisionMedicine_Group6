@@ -879,6 +879,23 @@ kable(data.frame(
 ))
 ```
 
+```{r}
+Purity_Response_test <- wilcox.test(
+  purity ~ BOR,
+  data = clinical_filtered
+)
+
+print(Purity_Response_test)
+
+plot_response_boxplot(
+  clinical_filtered,
+  "purity",
+  "Estimated tumor purity",
+  Purity_Response_test
+) +
+  labs(title = "Tumor purity by treatment response")
+```
+
 ### Discussion - RQ3
 
 **Biological information captured by each biomarker:**
