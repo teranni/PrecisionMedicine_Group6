@@ -1146,11 +1146,22 @@ The strong correlations between tumor purity and the immune biomarkers (PD-1 and
 
 This is a critical question in precision medicine:
 
-**Arguments FOR adjustment:** - Removes technical confounding from cellular composition - Focuses on tumor-intrinsic biology - May improve predictive accuracy
+**Arguments FOR adjustment:** 
 
-**Arguments AGAINST adjustment:** - Immune cell content IS the biology of interest for immunotherapy - Adjusting for purity removes clinically relevant information - The immune infiltration (measured by low purity) is part of the treatment mechanism
+- Removes technical confounding from cellular composition 
+- Focuses on tumor-intrinsic biology 
+- May improve predictive accuracy
 
-**Conclusion:** Tumor purity should not be automatically adjusted for. The question is: *What biological question are we asking?* - If we want to know "Do tumors with certain genetic characteristics respond?" → adjust for purity - If we want to know "Which patients will respond?" → do NOT adjust, as immune content is predictive
+**Arguments AGAINST adjustment:** 
+
+- Immune cell content IS the biology of interest for immunotherapy 
+- Adjusting for purity removes clinically relevant information 
+- The immune infiltration (measured by low purity) is part of the treatment mechanism
+
+**Conclusion:** Tumor purity should not be automatically adjusted for. The question is: *What biological question are we asking?* 
+
+- If we want to know "Do tumors with certain genetic characteristics respond?" → adjust for purity 
+- If we want to know "Which patients will respond?" → do NOT adjust, as immune content is predictive
 
 The main lesson is: **Understanding what generates the measured signal is essential before interpreting an association or using a biomarker for patient stratification.**
 
