@@ -1121,24 +1121,24 @@ p_gep_adj <- plot_response_boxplot(
 
 **How tumor purity influences immune-related biomarkers:**
 
-1.  **PD-1 expression:** Strong negative correlation with tumor purity (rho ≈ -0.48, p \< 0.0001)
+1.  **PD-1 expression:** Strong negative correlation with tumor purity (rho ≈ -0.69, p ≈ 1.35e-28)
     - PD-1 is primarily expressed on immune cells (T-cells)
     - Higher purity = fewer immune cells = lower PD-1 expression
     - This confirms that PD-1 expression in bulk RNA-seq is largely a measure of immune cell content
-2.  **T-cell-inflamed GEP:** Very strong negative correlation with tumor purity (rho ≈ -0.68, p \< 0.0001)
+2.  **T-cell-inflamed GEP:** Very strong negative correlation with tumor purity (rho ≈ -0.76, p ≈ 1.70e-37)
     - The GEP includes many immune cell-specific genes
     - Higher purity = fewer immune cells = lower GEP score
     - This is the strongest correlation among the biomarkers
-3.  **TMB:** Weak positive correlation with tumor purity (rho ≈ 0.22, p ≈ 0.09)
+3.  **TMB:** Weak positive correlation with tumor purity (rho ≈ 0.11, p ≈ 0.13)
     - TMB is measured from tumor cells
     - Higher purity = more tumor cells = more mutations detected
-    - The correlation is weaker, possibly due to technical factors in mutation calling
+    - The correlation is weaker and not statisitcally significant (p>0.05)
 
 **Do differences in tumor purity explain the associations observed in RQ2 and RQ3?**
 
 The strong correlations between tumor purity and the immune biomarkers (PD-1 and GEP) suggest that tumor purity is a significant confounder. When we adjust for tumor purity:
 
-- The associations between PD-1/GEP and response **decrease** (p-values increase)
+- The associations between PD-1/GEP and response **decrease** (p-values increase, all still <0.05)
 - This suggests that some of the observed signal was due to differences in tumor purity between responders and non-responders
 - However, the associations do not disappear completely, indicating that there is still biology beyond tumor purity
 
