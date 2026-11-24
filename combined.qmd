@@ -828,6 +828,24 @@ kable(summary(clinical_filtered |> select(TMB, PD1, GEP_scores)),
 ```{r}
 #| label: biomarker-boxplots
 
+# Create individual boxplots
+p_tmb <- plot_response_boxplot(clinical_filtered, "TMB", "Tumor mutational burden") +
+  ggtitle("TMB")
+
+p_pd1 <- plot_response_boxplot(clinical_filtered, "PD1", "PDCD1 expression (TPM)") +
+  ggtitle("PDCD1 Expression")
+
+p_gep <- plot_response_boxplot(clinical_filtered, "GEP_scores", "T cell-inflamed GEP score") +
+  ggtitle("GEP Score")
+
+(p_tmb + p_pd1 + p_gep) + plot_layout(ncol = 3)
+```
+
+### Statistical Tests
+
+```{r}
+#| label: biomarker-response-correlations
+
 # Wilcoxon tests
 TMB_Response_test <- wilcox.test(TMB ~ BOR, data = clinical_filtered)
 PD1_Response_test <- wilcox.test(PD1 ~ BOR, data = clinical_filtered)
@@ -840,27 +858,9 @@ kable(dplyr::bind_rows(
   .id = "Marker"
 ) |> dplyr::mutate(p.value = signif(p.value, 3)))
 
-# Create individual boxplots
-p_tmb <- plot_response_boxplot(clinical_filtered, "TMB", "Tumor mutational burden", TMB_Response_test) +
-  ggtitle("TMB by Response")
-
-p_pd1 <- plot_response_boxplot(clinical_filtered, "PD1", "PDCD1 expression (TPM)", PD1_Response_test) +
-  ggtitle("PDCD1 Expression by Response")
-
-p_gep <- plot_response_boxplot(clinical_filtered, "GEP_scores", "T cell-inflamed GEP score", GEP_Response_test) +
-  ggtitle("GEP Score by Response")
-
-(p_tmb + p_pd1 + p_gep) + plot_layout(ncol = 3)
-```
-
-### Biomarker Correlations
-
-```{r}
-#| label: biomarker-correlations
-
+# Calculate Spearman correlations
 clinical_filtered$Response_num <- as.numeric(clinical_filtered$BOR == "R")
 
-# Calculate Spearman correlations
 PD1_cor <- cor.test(clinical_filtered$PD1, clinical_filtered$Response_num, method = "spearman", 
                         exact = FALSE, use = "complete.obs")
 TMB_cor <- cor.test(clinical_filtered$TMB, clinical_filtered$Response_num, method = "spearman", 
