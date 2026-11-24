@@ -27,7 +27,7 @@ knitr::opts_chunk$set(
 
 # Introduction
 
-This report investigates gene-expression biomarkers of immunotherapy response using the IMvigor210 dataset, which contains RNA-seq data from patients with urothelial cancer treated with anti-PD-L1 therapy. We address four research questions:
+This project investigates gene-expression biomarkers of immunotherapy response using the IMvigor210 dataset, which contains RNA-seq data from patients with urothelial cancer treated with anti-PD-L1 therapy. We address four research questions:
 
 **RQ1:** Which genes are differentially expressed between responders and non-responders?
 
@@ -240,7 +240,21 @@ saveRDS(res_df, "data/differential_expression_results.rds")
 #| label: volcano-plot
 #| fig-height: 7
 
-volcano_plot <- plot_volcano(res_df)
+# Get top 30 most significant genes (using all genes with padj, not just significant ones)
+top_genes <- res_df |>
+  filter(!is.na(padj)) |>
+  arrange(padj) |>
+  head(30) |>
+  pull(gene)
+
+volcano_plot <- plot_volcano(res_df) +
+  # Label the top 30 genes
+  geom_text(
+    data = res_df %>% filter(gene %in% top_genes),
+    aes(label = gene),
+    size = 4,
+    position = position_nudge(y = 0.1)
+  ) 
 volcano_plot
 ```
 
@@ -254,12 +268,6 @@ The resulting table from NCBI was then exported and imported into R for further 
 
 
 ```{r}
-# Get top 30 most significant genes (using all genes with padj, not just significant ones)
-top_genes <- res_df |>
-  filter(!is.na(padj)) |>
-  arrange(padj) |>
-  head(30) |>
-  pull(gene)
 
 # Note: LOC81691 has modern name REXO5
 cat('\nTop 30 significant genes:\n')
@@ -799,12 +807,17 @@ The correlations between biomarkers suggest they capture related but distinct bi
 ### Background
 
 Bulk tumor RNA-seq contains RNA from:
+
 - Malignant tumor cells
+
 - Immune cells (lymphocytes, macrophages, etc.)
+
 - Stromal cells (fibroblasts, endothelial cells, etc.)
 
 **Tumor purity** refers to the proportion of tumor cells in the sample. Variation in tumor purity can influence biomarker measurements:
+
 - **Immune biomarkers** (PD-1, GEP) are expected to be **negatively** correlated with tumor purity (higher in samples with more immune cells)
+
 - **TMB** may be **positively** correlated with tumor purity (more tumor cells = more mutations detected)
 
 ### Estimate Tumor Purity
