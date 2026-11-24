@@ -165,6 +165,41 @@ sapply(list(TMB=TMB_Response_test,
 plot_response_boxplot(df,"GEP_scores","T cell–inflamed GEP across response groups")
 ```
 
+```{r}
+#| label: gep-response
+
+# Wilcoxon test for GEP vs Response
+GEP_Response_test <- wilcox.test(GEP_scores ~ BOR, data = clinical_filtered)
+
+cat("\nWilcoxon test - GEP scores vs Response:\n")
+print(GEP_Response_test)
+
+# Identify outliers within each response class
+outliers <- clinical_filtered %>%
+  group_by(BOR) %>%
+  filter(
+    GEP_scores < quantile(GEP_scores, 0.25, na.rm = TRUE) -
+      1.5 * IQR(GEP_scores, na.rm = TRUE) |
+    GEP_scores > quantile(GEP_scores, 0.75, na.rm = TRUE) +
+      1.5 * IQR(GEP_scores, na.rm = TRUE)
+  ) %>%
+  ungroup()
+
+# Boxplot
+plot_response_boxplot(clinical_filtered, 
+                      "GEP_scores",
+                      "T cell-inflamed GEP score",
+                      GEP_Response_test) +
+  geom_text_repel(
+    data = outliers,
+    aes(x = BOR, y = GEP_scores, label = Patient_ID),
+    size = 3,
+    max.overlaps = Inf,
+    box.padding = 0.4,
+    point.padding = 0.3
+  )
+```
+
 ## Step 4 - Tumor Purity
 
 ## Interpretations
