@@ -13,9 +13,6 @@ execute:
   echo: true
   warning: false
   message: false
-editor: 
-  markdown: 
-    wrap: 72
 ---
 
 ```{r, include=FALSE}
@@ -269,7 +266,7 @@ volcano_plot
 
 ### Biological Interpretation
 
-Using the top 30 most significantly differentially expressed genes, we can search for their biological functions and relevance to immunotherapy response.
+Using the top 30 most significantly differentially expressed genes, we can search for their biological functions.
 
 For this, a search for the NCBI Gene database is compiled below. While doing this, it was found that the gene LOC81691 is no longer the preferred symbol for this gene, and has been updated to REXO5. Therefore, we include this in the search query.
 
@@ -671,7 +668,13 @@ plot_response_boxplot(clinical_filtered, "GEP_scores", "T cell-inflamed GEP scor
 
 The T-cell-inflamed GEP measures the expression of genes involved in T-cell infiltration and activation within the tumor microenvironment. A high GEP score indicates a "hot" tumor with active immune infiltration, which is more likely to respond to immune checkpoint inhibitors.
 
-**Key points:** - The GEP genes include checkpoint molecules (PDCD1, LAG3, TIGIT), chemokines (CCL5, CXCL9), and MHC molecules (HLA-DQA1, HLA-DRB1, HLA-E) - These genes collectively represent the tumor's immune landscape - However, a high GEP score does not guarantee treatment response because: - The immune cells may be exhausted or dysfunctional - Other suppressive mechanisms may be active (e.g., TGF, as shown in Mariathasan et al. 2018) - Tumor purity effects may confound the measurement
+**Key points:** 
+
+- The GEP genes include checkpoint molecules (PDCD1, LAG3, TIGIT), chemokines (CCL5, CXCL9), and MHC molecules (HLA-DQA1, HLA-DRB1, HLA-E) - These genes collectively represent the tumor's immune landscape  
+- However, a high GEP score does not guarantee treatment response because: 
+- The immune cells may be exhausted or dysfunctional
+- Other suppressive mechanisms may be active (e.g., TGF, as shown in Mariathasan et al. 2018) 
+- Tumor purity effects may confound the measurement
 
 ## Research Question 3: Biomarker Comparison
 
